@@ -182,6 +182,9 @@ class corespraydf(object):
 		self.mb2=np.zeros(self.nstar)
 		self.eb=np.zeros(self.nstar)
 
+		if binaries:
+			self.bindx=np.zeros(self.nstar,dtype=bool)
+
 
 		while nescape < self.nstar:
 			ms,m_a,m_b=self._power_law_distribution_function(3, self.alpha, self.mmin, self.mmax)   
@@ -216,15 +219,12 @@ class corespraydf(object):
 				    #Check to see if recoil binary will also escape
 				    #Binary kick velocity is calculated assuming total linear momentum of system sums to zero
 				    vsb=vs*ms/mb
+				    vxkickb[nescape]=-vxkick[nescape]*ms/mb
+				    vykickb[nescape]=-vykick[nescape]*ms/mb
+				    vzkickb[nescape]=-vzkick[nescape]*ms/mb
 
 				    if vsb > self.vesc0:
-					    vxkickb[nescape]=-vxkick[nescape]*ms/mb
-					    vykickb[nescape]=-vykick[nescape]*ms/mb
-					    vzkickb[nescape]=-vzkick[nescape]*ms/mb
-				    else:
-					    vxkickb[nescape]=-9999.
-					    vykickb[nescape]=-9999.
-					    vzkickb[nescape]=-9999.
+					    self.bindx[nescape]=True
 
 				    self.mstar[nescape]=ms
 				    self.mb1[nescape]=m_a
@@ -262,8 +262,8 @@ class corespraydf(object):
 			vxvv_f.append([os.R(0.)/self.ro,os.vR(0.)/self.vo,os.vT(0.)/self.vo,os.z(0.)/self.ro,os.vz(0.)/self.vo,os.phi(0.)])
 
 		#Save initial and final positions and velocities of kicked stars at t=0 in orbit objects
-		self.oi=Orbit(np.column_stack(vxvv_i),ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
-		self.of=Orbit(np.column_stack(vxvv_f),ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
+		self.oi=Orbit(vxvv_i,ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
+		self.of=Orbit(vxvv_f,ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
 
 		if binaries:
 			#Integrate orbits of binary star with kick velocities greater than the cluster's escape speed:
@@ -285,17 +285,17 @@ class corespraydf(object):
 
 				#Integrate orbit from tesc to 0. if kick velocity is higher than cluster's escape velocity
 
-				if vxkickb[i]>-9999.:
+				if self.bindx[i]:
 					os=Orbit(vxvv_i[-1],ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
 					ts=np.linspace(self.tesc[i]/self.to,0.,1000)
 					os.integrate(ts,self.pot)
 					vxvvb_f.append([os.R(0.)/self.ro,os.vR(0.)/self.vo,os.vT(0.)/self.vo,os.z(0.)/self.ro,os.vz(0.)/self.vo,os.phi(0.)])
 
 				else:
-					vxvvb_f.append(vxvvb_i[-1])
+					vxvvb_f.append([-9999,-9999,-9999,-9999,-9999,-9999])
 
-			self.obi=Orbit(np.column_stack(vxvvb_i),ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
-			self.obf=Orbit(np.column_stack(vxvvb_f),ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
+			self.obi=Orbit(vxvvb_i,ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
+			self.obf=Orbit(vxvvb_f,ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
 
 		return self.of
 
@@ -449,7 +449,7 @@ class corespraydf(object):
 
 		self.ts=np.linspace(-1.*self.tdisrupt/self.to,0.,frames)
 		tsint=np.linspace(0.,-1.*self.tdisrupt/self.to,1000)
-		self.oe.integrate(tsint,self.pot)
+		self.of.integrate(tsint,self.pot)
 
 		gcdata=np.zeros(shape=(frames,2))
 
@@ -459,7 +459,7 @@ class corespraydf(object):
 		sdata=np.zeros(shape=(frames,2,self.nstar))
 
 		for i in range(0,frames):
-			sdata[i]=[self.oe.x(self.ts[i]),self.oe.y(self.ts[i])]
+			sdata[i]=[self.of.x(self.ts[i]),self.of.y(self.ts[i])]
 
 		self._set_data(gcdata,sdata)
 
@@ -479,12 +479,12 @@ class corespraydf(object):
 	    2021 - Written - Webb (UofT)
 
 	    """
-		R=np.append(self.o.R(0.),self.oe.R(0.))
-		vR=np.append(self.o.vR(0.),self.oe.vR(0.))
-		vT=np.append(self.o.vT(0.),self.oe.vT(0.))
-		z=np.append(self.o.z(0.),self.oe.z(0.))
-		vz=np.append(self.o.vz(0.),self.oe.vz(0.))
-		phi=np.append(self.o.phi(0.),self.oe.phi(0.))
+		R=np.append(self.o.R(0.),self.of.R(0.))
+		vR=np.append(self.o.vR(0.),self.of.vR(0.))
+		vT=np.append(self.o.vT(0.),self.of.vT(0.))
+		z=np.append(self.o.z(0.),self.of.z(0.))
+		vz=np.append(self.o.vz(0.),self.of.vz(0.))
+		phi=np.append(self.o.phi(0.),self.of.phi(0.))
 
 		vesc=np.append(0.,self.vesc)
 		tesc=np.append(0.,self.tesc)
