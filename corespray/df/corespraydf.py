@@ -109,7 +109,7 @@ class corespraydf(object):
 			else:
 				self.gcpot=KingPotential(W0,mgc/self.mo,rgc/self.ro,ro=self.ro,vo=self.vo)
 
-	def sample(self,tdisrupt=1000.,rate=1.,nstar=None,npeak=5.,verbose=False):
+	def sample(self,tdisrupt=1000.,rate=1.,nstar=None,npeak=5.,binaries=False,verbose=False):
 		""" A function for sampling the core ejection distribution function
 
 		Parameters
@@ -123,8 +123,15 @@ class corespraydf(object):
 			if set, nstar stars will be ejected randomly from tdisrupt to 0 Myr. Rate is recalculated. (default : None)
 		npeak : float
 			when sampling kick velocity distribution function, sampling range will be from 0 to npeak*vpeak, where vpeak is the peak in the distribution function (default: 5)
+		binaries : bool
+			keep track of binaries that receive recoil kicks greater than the cluster's escape velocity (default : False)
 		verbose : bool
 			print additional information to screen (default: False)
+
+		Returns
+		----------
+
+
 
 		History
 		-------
@@ -151,16 +158,21 @@ class corespraydf(object):
 		ts=np.linspace(0.,-1.*self.tdisrupt/self.to,1000)
 		self.o.integrate(ts,self.mwpot)
 
-		moving_pot=MovingObjectPotential(self.o,self.gcpot,ro=self.ro,vo=self.vo)
-		self.pot=[self.mwpot,moving_pot]
+		if self.gcpot is None:
+			self.pot=self.mwpot
+		else:
+			moving_pot=MovingObjectPotential(self.o,self.gcpot,ro=self.ro,vo=self.vo)
+			self.pot=[self.mwpot,moving_pot]
 	    
-	    #Generate positions and new velocities for escaped stars with velocity dispersions of 100/root(3), based on
-	    #gcname's position 1 Gyr ago
+	    #Generate kick velocities for escaped stars and binaries
+		vxkick=np.zeros(self.nstar)
+		vykick=np.zeros(self.nstar)
+		vzkick=np.zeros(self.nstar)
+	    
+		vxkickb=np.zeros(self.nstar)
+		vykickb=np.zeros(self.nstar)
+		vzkickb=np.zeros(self.nstar)
 
-		vxesc=np.zeros(self.nstar)
-		vyesc=np.zeros(self.nstar)
-		vzesc=np.zeros(self.nstar)
-	    
 		self.vesc=np.array([])
 
 		nescape=0
@@ -183,6 +195,8 @@ class corespraydf(object):
 				vxs,vys,vzs=np.random.normal(self.mu0,self.sig0,3)
 				vstar=np.sqrt(vxs**2.+vys**2.+vzs**2.)
 				vxb,vyb,vzb=np.random.normal(self.mu0,self.sig0,3)
+				vbin=np.sqrt(vxb**2.+vyb**2.+vzb**2.)
+
 				rdot=np.sqrt((vxs-vxb)**2.+(vys-vyb)**2.+(vzs-vzb)**2.)
 
 				ebin,semi=self._sample_binding_energy(m_a,m_b,-1,self.emin,self.emax)
@@ -195,9 +209,22 @@ class corespraydf(object):
 
 				    self.vesc=np.append(self.vesc,vs)
 
-				    vxesc[nescape]=vs*(vxs/vstar)
-				    vyesc[nescape]=vs*(vys/vstar)
-				    vzesc[nescape]=vs*(vzs/vstar)
+				    vxkick[nescape]=vs*(vxs/vstar)
+				    vykick[nescape]=vs*(vys/vstar)
+				    vzkick[nescape]=vs*(vzs/vstar)
+
+				    #Check to see if recoil binary will also escape
+				    #Binary kick velocity is calculated assuming total linear momentum of system sums to zero
+				    vsb=vs*ms/mb
+
+				    if vsb > self.vesc0:
+					    vxkickb[nescape]=-vxkick[nescape]*ms/mb
+					    vykickb[nescape]=-vykick[nescape]*ms/mb
+					    vzkickb[nescape]=-vzkick[nescape]*ms/mb
+				    else:
+					    vxkickb[nescape]=-9999.
+					    vykickb[nescape]=-9999.
+					    vzkickb[nescape]=-9999.
 
 				    self.mstar[nescape]=ms
 				    self.mb1[nescape]=m_a
@@ -210,39 +237,67 @@ class corespraydf(object):
 		
 		Re0, phie0, ze0, vRe0, vTe0, vze0=np.array([]),np.array([]),np.array([]),np.array([]),np.array([]),np.array([])
 
-		self.o0=[]
+		#Initial and final positions and velocities
+		vxvv_i=[]
+		vxvv_f=[]
 
 		for i in range(0,self.nstar):
-			xe,ye,ze=self.o.x(self.tesc[i]/self.to),self.o.y(self.tesc[i]/self.to),self.o.z(self.tesc[i]/self.to)
-			vxe=vxesc[i]+self.o.vx(self.tesc[i]/self.to)
-			vye=vyesc[i]+self.o.vy(self.tesc[i]/self.to)
-			vze=vzesc[i]+self.o.vy(self.tesc[i]/self.to)
+			xi,yi,zi=self.o.x(self.tesc[i]/self.to),self.o.y(self.tesc[i]/self.to),self.o.z(self.tesc[i]/self.to)
+			vxi=vxkick[i]+self.o.vx(self.tesc[i]/self.to)
+			vyi=vykick[i]+self.o.vy(self.tesc[i]/self.to)
+			vzi=vzkick[i]+self.o.vz(self.tesc[i]/self.to)
 
-			if verbose: print(i,self.tesc[i],xe,ye,ze,vxe,vye,vze)
+			if verbose: print(i,self.tesc[i],xi,yi,zi,vxi,vyi,vzi)
 
-			Re, phie, ze, vRe, vTe, vze=cart_to_cyl(xe,ye,ze,vxe,vye,vze)
-			oe=Orbit([Re/self.ro, vRe/self.vo, vTe/self.vo, ze/self.ro, vze/self.vo, phie],ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
+			#Save initial positions and velocities
+			Ri, phii, zi, vRi, vTi, vzi=cart_to_cyl(xi,yi,zi,vxi,vyi,vzi)
+			vxvv_i.append([Ri/self.ro, vRi/self.vo, vTi/self.vo, zi/self.ro, vzi/self.vo, phii])
 
-			#Save initial positions and velocities of kicked stars
-			self.o0.append(oe)
-
+			#Integrate orbit from tesc to 0.
+			os=Orbit(vxvv_i[-1],ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
 			ts=np.linspace(self.tesc[i]/self.to,0.,1000)
-			oe.integrate(ts,self.pot)
+			os.integrate(ts,self.pot)
 
+			#Save final positions and velocities
+			vxvv_f.append([os.R(0.)/self.ro,os.vR(0.)/self.vo,os.vT(0.)/self.vo,os.z(0.)/self.ro,os.vz(0.)/self.vo,os.phi(0.)])
 
-			Re0=np.append(Re0,oe.R(0.))
-			phie0=np.append(phie0,oe.phi(0.))
-			ze0=np.append(ze0,oe.z(0.))
-			vRe0=np.append(vRe0,oe.vR(0.))
-			vTe0=np.append(vTe0,oe.vT(0.))
-			vze0=np.append(vze0,oe.vz(0.))
+		#Save initial and final positions and velocities of kicked stars at t=0 in orbit objects
+		self.oi=Orbit(np.column_stack(vxvv_i),ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
+		self.of=Orbit(np.column_stack(vxvv_f),ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
 
+		if binaries:
+			#Integrate orbits of binary star with kick velocities greater than the cluster's escape speed:
+			#Initial and final positions and velocities
+			vxvvb_i=[]
+			vxvvb_f=[]
 
-		#Save final positions and velocities of kicked stars at t=0
-		vxvve=np.column_stack([Re0/self.ro,vRe0/self.vo,vTe0/self.vo,ze0/self.ro,vze0/self.vo,phie0])
-		self.oe=Orbit(vxvve,ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
-		
-		return self.oe
+			for i in range(0,self.nstar):
+				xi,yi,zi=self.o.x(self.tesc[i]/self.to),self.o.y(self.tesc[i]/self.to),self.o.z(self.tesc[i]/self.to)
+				vxi=vxkickb[i]+self.o.vx(self.tesc[i]/self.to)
+				vyi=vykickb[i]+self.o.vy(self.tesc[i]/self.to)
+				vzi=vzkickb[i]+self.o.vz(self.tesc[i]/self.to)
+
+				if verbose: print(i,self.tesc[i],xi,yi,zi,vxi,vyi,vzi)
+
+				#Save initial positions and velocities
+				Ri, phii, zi, vRi, vTi, vzi=cart_to_cyl(xi,yi,zi,vxi,vyi,vzi)
+				vxvvb_i.append([Ri/self.ro, vRi/self.vo, vTi/self.vo, zi/self.ro, vzi/self.vo, phii])
+
+				#Integrate orbit from tesc to 0. if kick velocity is higher than cluster's escape velocity
+
+				if vxkickb[i]>-9999.:
+					os=Orbit(vxvv_i[-1],ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
+					ts=np.linspace(self.tesc[i]/self.to,0.,1000)
+					os.integrate(ts,self.pot)
+					vxvvb_f.append([os.R(0.)/self.ro,os.vR(0.)/self.vo,os.vT(0.)/self.vo,os.z(0.)/self.ro,os.vz(0.)/self.vo,os.phi(0.)])
+
+				else:
+					vxvvb_f.append(vxvvb_i[-1])
+
+			self.obi=Orbit(np.column_stack(vxvvb_i),ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
+			self.obf=Orbit(np.column_stack(vxvvb_f),ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
+
+		return self.of
 
 	def _prob_three_body_escape(self,ms,m_a,m_b,q):
 

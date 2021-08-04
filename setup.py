@@ -14,5 +14,5 @@ setuptools.setup(
     license='MIT',
     packages=["corespray","corespray/df"],
     setup_requires=['numpy>=1.8','scipy'],
-    install_requires=['matplotlib','galpy','clustertools'],
+    install_requires=['matplotlib','galpy'],
     )
