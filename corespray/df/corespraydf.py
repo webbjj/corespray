@@ -209,7 +209,11 @@ class corespraydf(object):
 		self.eb=np.zeros(self.nstar)
 
 		if binaries:
+			self.binaries=True
 			self.bindx=np.zeros(self.nstar,dtype=bool)
+			self.vescb=np.array([])
+		else:
+			self.binaries=False
 
 
 		while nescape < self.nstar:
@@ -242,15 +246,18 @@ class corespraydf(object):
 				    vykick[nescape]=vs*(vys/vstar)
 				    vzkick[nescape]=vs*(vzs/vstar)
 
-				    #Check to see if recoil binary will also escape
-				    #Binary kick velocity is calculated assuming total linear momentum of system sums to zero
-				    vsb=vs*ms/mb
-				    vxkickb[nescape]=-vxkick[nescape]*ms/mb
-				    vykickb[nescape]=-vykick[nescape]*ms/mb
-				    vzkickb[nescape]=-vzkick[nescape]*ms/mb
+				    if binaries:
+					    #Check to see if recoil binary will also escape
+					    #Binary kick velocity is calculated assuming total linear momentum of system sums to zero
+					    vsb=vs*ms/mb
+					    vxkickb[nescape]=-vxkick[nescape]*ms/mb
+					    vykickb[nescape]=-vykick[nescape]*ms/mb
+					    vzkickb[nescape]=-vzkick[nescape]*ms/mb
 
-				    if vsb > self.vesc0:
-					    self.bindx[nescape]=True
+					    self.vescb=np.append(self.vescb,vsb)
+
+					    if vsb > self.vesc0:
+						    self.bindx[nescape]=True
 
 				    self.mstar[nescape]=ms
 				    self.mb1[nescape]=m_a
@@ -324,7 +331,7 @@ class corespraydf(object):
 					vxvvb_f.append([os.R(0.)/self.ro,os.vR(0.)/self.vo,os.vT(0.)/self.vo,os.z(0.)/self.ro,os.vz(0.)/self.vo,os.phi(0.)])
 
 				else:
-					vxvvb_f.append([-9999,-9999,-9999,-9999,-9999,-9999])
+					vxvvb_f.append([self.o.R(0.)/self.ro,self.o.vR(0.)/self.vo,self.o.vT(0.)/self.vo,self.o.z(0.)/self.ro,self.o.vz(0.)/self.vo,self.o.phi(0.)])
 
 			self.obi=Orbit(vxvvb_i,ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
 			self.obf=Orbit(vxvvb_f,ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
@@ -497,7 +504,7 @@ class corespraydf(object):
 
 		self.anim = animation.FuncAnimation(self.fig, self._ani_update, init_func=self._ani_init, frames=frames, interval=interval, blit=False)
 
-	def snapout(self,filename='corespray.dat'):
+	def snapout(self,filename='corespray.dat',filenameb='corespray.dat'):
 		"""Output present day positions, velocities, escape times, and escape velocities of stars
 		
 		Parameters
@@ -522,3 +529,16 @@ class corespraydf(object):
 		tesc=np.append(0.,self.tesc)
 
 		np.savetxt(filename,np.column_stack([R,vR,vT,z,vz,phi,vesc,tesc]))
+
+		if self.binaries:
+			R=self.obf.R(0.)
+			vR=self.obf.vR(0.)
+			vT=self.obf.vT(0.)
+			z=self.obf.z(0.)
+			vz=self.obf.vz(0.)
+			phi=self.obf.phi(0.)
+
+			vesc=self.vescb
+			tesc=self.tesc
+
+			np.savetxt(filenameb,np.column_stack([R,vR,vT,z,vz,phi,vesc,tesc,self.bindx]))
