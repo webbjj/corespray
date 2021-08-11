@@ -10,13 +10,11 @@ __all__ = [
 
 from galpy.orbit import Orbit
 from galpy.potential import MWPotential2014,PlummerPotential,KingPotential,MovingObjectPotential
-from galpy.util import bovy_conversion,conversion,bovy_plot
+from galpy.util import conversion,coords
 import numpy as np
 
 import matplotlib.pyplot as plt
 from matplotlib import animation
-
-from clustertools import cart_to_cyl
 
 
 class corespraydf(object):
@@ -68,7 +66,10 @@ class corespraydf(object):
 
 	"""
 
-	def __init__(self,gcorbit,pot=MWPotential2014,mu0=0.,sig0=10.0,vesc0=10.0,rho0=1.,mgc=None,rgc=None,W0=None,mmin=0.1,mmax=1.4,alpha=-1.35,emin=10.0**36,emax=10.0**40.0,ro=8.,vo=220.,q=-3):
+	def __init__(self,gcorbit,pot=MWPotential2014,mu0=0.,sig0=10.0,vesc0=10.0,rho0=1.,mgc=None,rgc=None,W0=None,mmin=0.1,mmax=1.4,alpha=-1.35,emin=None,emax=None,ro=8.,vo=220.,q=-3,verbose=False):
+
+		grav=4.302e-3 # pc (km/s)^2 / Msun
+		msolar=1.9891e30
 
 		if isinstance(gcorbit,str):
 			self.gcname=gcorbit
@@ -88,12 +89,37 @@ class corespraydf(object):
 		self.rsep=((self.mbar/self.rho0)/(4.*np.pi/3.))**(1./3.)
 
 		#Limits of binary energy distribution
-		self.emin=emin
-		self.emax=emax
+		#If emin and emax are None, assume limits are between twice the hard-soft boundary and twice the contact boundary between two solar mass stars
+		#10^36 to 10^40 was the previous default
+
+		if emin is None:
+
+			a_hs=grav*self.mbar/(sig0**2.) # pc
+			a_max=2.*a_hs
+			e_min=grav*(self.mbar**2.)/(2.0*a_max) #Msun (km/s)**2
+			e_min*=(1000.0**2.)
+
+			self.emin=e_min*msolar
+
+		else:
+			self.emin=emin
+
+		if emax is None:
+			a_min=(4.0/215.032)*4.84814e-6 #pc
+			e_max=grav*(self.mbar**2.)/(2.0*a_min) #Msun (km/s)**2
+			e_max*=(1000.0**2.)
+
+			self.emax=e_max*msolar
+
+		else:
+			self.emax=emax
+
+		if verbose:
+			print('Sample Binary Energies between: ',self.emin,' and ',self.emax,' J')
 
 		self.ro,self.vo=ro,vo
 		self.to=conversion.time_in_Gyr(ro=self.ro,vo=self.vo)*1000.
-		self.mo=bovy_conversion.mass_in_msol(ro=self.ro,vo=self.vo)
+		self.mo=conversion.mass_in_msol(ro=self.ro,vo=self.vo)
 
 
 		self.q=q
@@ -250,7 +276,10 @@ class corespraydf(object):
 			if verbose: print(i,self.tesc[i],xi,yi,zi,vxi,vyi,vzi)
 
 			#Save initial positions and velocities
-			Ri, phii, zi, vRi, vTi, vzi=cart_to_cyl(xi,yi,zi,vxi,vyi,vzi)
+
+			Ri, phii, zi = coords.rect_to_cyl(xi, yi, zi)
+			vRi, vTi, vzi = coords.rect_to_cyl_vec(vxi, vyi, vzi, xi, yi, zi)
+
 			vxvv_i.append([Ri/self.ro, vRi/self.vo, vTi/self.vo, zi/self.ro, vzi/self.vo, phii])
 
 			#Integrate orbit from tesc to 0.
@@ -280,7 +309,10 @@ class corespraydf(object):
 				if verbose: print(i,self.tesc[i],xi,yi,zi,vxi,vyi,vzi)
 
 				#Save initial positions and velocities
-				Ri, phii, zi, vRi, vTi, vzi=cart_to_cyl(xi,yi,zi,vxi,vyi,vzi)
+				Ri, phii, zi = coords.rect_to_cyl(xi, yi, zi)
+				vRi, vTi, vzi = coords.rect_to_cyl_vec(vxi, vyi, vzi, xi, yi, zi)
+
+
 				vxvvb_i.append([Ri/self.ro, vRi/self.vo, vTi/self.vo, zi/self.ro, vzi/self.vo, phii])
 
 				#Integrate orbit from tesc to 0. if kick velocity is higher than cluster's escape velocity
