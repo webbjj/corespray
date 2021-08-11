@@ -429,15 +429,19 @@ class corespraydf(object):
 	    self.txt_title=self.ax.set_title('')
 	    self.line, = self.ax.plot([], [], lw=2)
 	    self.pt, = self.ax.plot([],[],'.')
+	    self.pt2, = self.ax.plot([],[],'.')
 
-	def _set_data(self,gcdata,sdata):
+	def _set_data(self,gcdata,sdata,bdata):
 	    self.gcdata = gcdata
 	    self.sdata=sdata
+	    self.bdata=bdata
 
 	def _ani_init(self):
 	    self.line.set_data([], [])
 	    self.pt.set_data([],[])
-	    return self.line,self.pt
+	    self.pt2.set_data([],[])
+
+	    return self.line,self.pt,self.pt2
 
 	def _ani_update(self, i):
 
@@ -451,15 +455,20 @@ class corespraydf(object):
 
 		escindx=self.tesc/self.to <= self.ts[i]
 
-
 		if np.sum(escindx)>0:
 			self.pt.set_data(self.sdata[i][0][escindx],self.sdata[i][1][escindx])
 		else:
 			self.pt.set_data([],[])
 
+		if self.binaries:
+			if np.sum(escindx)>0:
+				self.pt2.set_data(self.bdata[i][0][escindx*self.bindx],self.bdata[i][1][escindx*self.bindx])
+			else:
+				self.pt2.set_data([],[])	
+
 		self.txt_title.set_text('%s' % str (self.ts[i]*self.to))
 
-		return self.line,self.pt
+		return self.line,self.pt,self.pt2
 
 
 	def animate(self,frames=100,interval=50,xlim=(-20,20),ylim=(-20,20)):
@@ -489,6 +498,8 @@ class corespraydf(object):
 		self.ts=np.linspace(-1.*self.tdisrupt/self.to,0.,frames)
 		tsint=np.linspace(0.,-1.*self.tdisrupt/self.to,1000)
 		self.of.integrate(tsint,self.pot)
+		if self.binaries:
+			self.obf.integrate(tsint,self.pot)
 
 		gcdata=np.zeros(shape=(frames,2))
 
@@ -500,7 +511,14 @@ class corespraydf(object):
 		for i in range(0,frames):
 			sdata[i]=[self.of.x(self.ts[i]),self.of.y(self.ts[i])]
 
-		self._set_data(gcdata,sdata)
+		if self.binaries:
+			bdata=np.zeros(shape=(frames,2,self.nstar))
+			for i in range(0,frames):
+				bdata[i]=[self.obf.x(self.ts[i]),self.obf.y(self.ts[i])]
+		else:
+			bdata=None
+
+		self._set_data(gcdata,sdata,bdata)
 
 		self.anim = animation.FuncAnimation(self.fig, self._ani_update, init_func=self._ani_init, frames=frames, interval=interval, blit=False)
 
