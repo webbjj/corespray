@@ -250,9 +250,9 @@ class corespraydf(object):
 					    #Check to see if recoil binary will also escape
 					    #Binary kick velocity is calculated assuming total linear momentum of system sums to zero
 
-					    pxi=self.mstar*vxs+mb*vxb
-					    pyi=self.mstar*vys+mb*vyb
-					    pzi=self.mstar*vzs+mb*vzb
+					    pxi=ms*vxs+mb*vxb
+					    pyi=ms*vys+mb*vyb
+					    pzi=ms*vzs+mb*vzb
 
 					    vxkickb[nescape]=(pxi-ms*vxkick[nescape])/mb
 					    vykickb[nescape]=(pyi-ms*vykick[nescape])/mb
