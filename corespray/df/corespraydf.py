@@ -319,7 +319,7 @@ class corespraydf(object):
 				vyi=vykickb[i]+self.o.vy(self.tesc[i]/self.to)
 				vzi=vzkickb[i]+self.o.vz(self.tesc[i]/self.to)
 
-				if verbose: print(i,self.tesc[i],xi,yi,zi,vxi,vyi,vzi)
+				if verbose: print('Binary ',i,self.tesc[i],xi,yi,zi,vxi,vyi,vzi)
 
 				#Save initial positions and velocities
 				Ri, phii, zi = coords.rect_to_cyl(xi, yi, zi)
@@ -331,7 +331,7 @@ class corespraydf(object):
 				#Integrate orbit from tesc to 0. if kick velocity is higher than cluster's escape velocity
 
 				if self.bindx[i]:
-					os=Orbit(vxvv_i[-1],ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
+					os=Orbit(vxvvb_i[-1],ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
 					ts=np.linspace(self.tesc[i]/self.to,0.,1000)
 					os.integrate(ts,self.pot)
 					vxvvb_f.append([os.R(0.)/self.ro,os.vR(0.)/self.vo,os.vT(0.)/self.vo,os.z(0.)/self.ro,os.vz(0.)/self.vo,os.phi(0.)])
