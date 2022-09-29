@@ -39,7 +39,7 @@ class corespraydf(object):
 	mgc : float
 		globular cluster mass - needed if cluster's potential is to be included in orbit integration of escapers (default: None)
 	rgc : float
-		scale radius of globular cluster (assuming Plummer potential) or tidal radius of globular cluster (assuming King potential) (default: None)
+		half-mass radius of globular cluster (assuming Plummer potential) or tidal radius of globular cluster (assuming King potential) (default: None)
 	W0 : float
 		King central potential parameter (default: None, which results in cluster potential taken to be a Plummer)
 	mmin : float
@@ -342,7 +342,10 @@ class corespraydf(object):
 			self.obi=Orbit(vxvvb_i,ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
 			self.obf=Orbit(vxvvb_f,ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
 
-		return self.of
+		if binaries:
+			return self.of,self.obf
+		else:
+			return self.of
 
 	def _prob_three_body_escape(self,ms,m_a,m_b,q):
 
