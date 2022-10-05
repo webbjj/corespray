@@ -20,7 +20,7 @@ from matplotlib import animation
 class corespraydf(object):
 
 	""" A class for initializing a distribution function for stars that are ejected from the core of a globular cluster
-
+	-- If emin and emax are None, assume limits are between twice the hard-soft boundary and twice the contact boundary between two solar mass stars
 	Parameters
 	----------
 
@@ -43,21 +43,21 @@ class corespraydf(object):
 	W0 : float
 		King central potential parameter (default: None, which results in cluster potential taken to be a Plummer)
 	mmin : float
-		minimum stellar mass in core (default (0.1))
+		minimum stellar mass in core (default (0.1 Msun))
 	mmax : float
-		maximum stellar mass in the core (default: 1.4)
+		maximum stellar mass in the core (default: 1.4 Msun)
 	alpha : float
 		slope of the stellar mass function in the core (default: -1.35)
 	emin : float
-		minimum binary energy (default: 10.0**36 J)
+		minimum binary energy (default: None)
 	emax : float
-		maximum binary energy (default: 10.0**40 J)
+		maximum binary energy (default: None)
 	ro : float
 		galpy length scaling parameter (default: 8.)
 	vo : float
 		galpy veocicity scaling parameter (default: 220.)
 	q : float
-		exponenet for calculating probability of stellar escape from three-body system (#Equation 7.23)
+		exponenet for calculating probability of stellar escape from three-body system (#Equation 7.23) (default: -3)
 
 
 	History
@@ -90,7 +90,6 @@ class corespraydf(object):
 
 		#Limits of binary energy distribution
 		#If emin and emax are None, assume limits are between twice the hard-soft boundary and twice the contact boundary between two solar mass stars
-		#10^36 to 10^40 was the previous default
 
 		if emin is None:
 
@@ -531,7 +530,7 @@ class corespraydf(object):
 
 		self.anim = animation.FuncAnimation(self.fig, self._ani_update, init_func=self._ani_init, frames=frames, interval=interval, blit=False)
 
-	def snapout(self,filename='corespray.dat',filenameb='corespray.dat'):
+	def snapout(self,filename='corespray.dat',filenameb='coresprayb.dat'):
 		"""Output present day positions, velocities, escape times, and escape velocities of stars
 		
 		Parameters
@@ -539,7 +538,8 @@ class corespraydf(object):
 
     	filename: str
     		file name to write data to (default: corespray.dat)
-
+    	filenameb: str
+    		file name to write binary data to (default: corespray.dat)
 	    History
    		-------
 	    2021 - Written - Webb (UofT)
