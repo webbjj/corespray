@@ -135,7 +135,39 @@ class corespraydf(object):
 				self.gcpot=KingPotential(W0,mgc/self.mo,rgc/self.ro,ro=self.ro,vo=self.vo)
 
 	def sample(self,tdisrupt=1000.,rate=1.,nstar=None,npeak=5.,binaries=False,verbose=False):
-		""" A function for sampling the core ejection distribution function
+		""" A function for sampling the three-body interaction core ejection distribution function
+
+		Parameters
+		----------
+
+		tdisrupt : float
+			time over which sampling begins (Myr)
+		rate : float
+			ejection rate (default 1 per Myr)
+		nstar : float
+			if set, nstar stars will be ejected randomly from tdisrupt to 0 Myr. Rate is recalculated. (default : None)
+		npeak : float
+			when sampling kick velocity distribution function, sampling range will be from 0 to npeak*vpeak, where vpeak is the peak in the distribution function (default: 5)
+		binaries : bool
+			keep track of binaries that receive recoil kicks greater than the cluster's escape velocity (default : False)
+		verbose : bool
+			print additional information to screen (default: False)
+
+		Returns
+		----------
+
+
+
+		History
+		-------
+		2021 - Written - Grandin/Webb (UofT)
+
+		"""
+
+		return self.sample_three_body(tdisrupt=tdisrupt,rate=rate,nstar=nstar,npeak=npeak,binaries=binaries,verbose=verbose)
+
+	def sample_three_body(self,tdisrupt=1000.,rate=1.,nstar=None,npeak=5.,binaries=False,verbose=False):
+		""" A function for sampling the three-body interaction core ejection distribution function
 
 		Parameters
 		----------
@@ -407,6 +439,107 @@ class corespraydf(object):
 		vs_peak=0.5*np.sqrt((M-ms)/(ms*M))*np.sqrt(np.fabs(e0))
 
 		return vs_peak
+
+	def sample_uniform(self,tdisrupt=1000.,rate=1.,nstar=None,vmin=0.,vmax=500.,verbose=False):
+		""" A function for sampling a uniform core ejection distribution function
+
+		Parameters
+		----------
+
+		tdisrupt : float
+			time over which sampling begins (Myr)
+		rate : float
+			ejection rate (default 1 per Myr)
+		nstar : float
+			if set, nstar stars will be ejected randomly from tdisrupt to 0 Myr. Rate is recalculated. (default : None)
+		vmin : float
+			minimum kick velocity
+		vmax : float
+			maximum kick velocity
+		verbose : bool
+			print additional information to screen (default: False)
+
+		Returns
+		----------
+
+
+
+		History
+		-------
+		2021 - Written - Grandin/Webb (UofT)
+
+		"""
+
+		grav=4.302e-3 #pc/Msun (km/s)^2
+
+		self.tdisrupt=tdisrupt
+
+
+		#Select escape times
+		#If nstar is not None, randomly select escapers between tstart and tend
+		if nstar is not None:
+			self.nstar=nstar
+			self.rate=nstar/self.tdisrupt
+		else:
+			self.rate=rate
+			self.nstar=self.tdisrupt*rate
+			
+		self.tesc=-1.*self.tdisrupt*np.random.rand(self.nstar)
+
+		ts=np.linspace(0.,-1.*self.tdisrupt/self.to,1000)
+		self.o.integrate(ts,self.mwpot)
+
+		if self.gcpot is None:
+			self.pot=self.mwpot
+		else:
+			moving_pot=MovingObjectPotential(self.o,self.gcpot,ro=self.ro,vo=self.vo)
+			self.pot=[self.mwpot,moving_pot]
+	    
+	    #Generate kick velocities for escaped stars and binaries
+		self.vesc=vmin+(vmax-vmin)*np.random.rand(self.nstar)
+
+		#Initial and final positions and velocities
+		vxvv_i=[]
+		vxvv_f=[]
+		
+		for i in range(0,self.nstar):
+
+			#Assume a random direction
+			vxs,vys,vzs=np.random.normal(self.mu0,self.sig0,3)
+			vstar=np.sqrt(vxs**2.+vys**2.+vzs**2.)
+
+			vxkick=self.vesc[i]*(vxs/vstar)
+			vykick=self.vesc[i]*(vys/vstar)
+			vzkick=self.vesc[i]*(vzs/vstar)
+
+			xi,yi,zi=self.o.x(self.tesc[i]/self.to),self.o.y(self.tesc[i]/self.to),self.o.z(self.tesc[i]/self.to)
+			vxi=vxkick+self.o.vx(self.tesc[i]/self.to)
+			vyi=vykick+self.o.vy(self.tesc[i]/self.to)
+			vzi=vzkick+self.o.vz(self.tesc[i]/self.to)
+
+			if verbose: print(i,self.tesc[i],xi,yi,zi,vxi,vyi,vzi)
+
+			#Save initial positions and velocities
+
+			Ri, phii, zi = coords.rect_to_cyl(xi, yi, zi)
+			vRi, vTi, vzi = coords.rect_to_cyl_vec(vxi, vyi, vzi, xi, yi, zi)
+
+			vxvv_i.append([Ri/self.ro, vRi/self.vo, vTi/self.vo, zi/self.ro, vzi/self.vo, phii])
+
+			#Integrate orbit from tesc to 0.
+			os=Orbit(vxvv_i[-1],ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
+			ts=np.linspace(self.tesc[i]/self.to,0.,1000)
+			os.integrate(ts,self.pot)
+
+			#Save final positions and velocities
+			vxvv_f.append([os.R(0.)/self.ro,os.vR(0.)/self.vo,os.vT(0.)/self.vo,os.z(0.)/self.ro,os.vz(0.)/self.vo,os.phi(0.)])
+
+		#Save initial and final positions and velocities of kicked stars at t=0 in orbit objects
+		self.oi=Orbit(vxvv_i,ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
+		self.of=Orbit(vxvv_f,ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
+		
+		return self.of
+
 
 	def _power_law_distribution_function(self,n,alpha,xmin,xmax):
 
