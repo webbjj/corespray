@@ -28,36 +28,16 @@ class corespraydf(object):
 		Name of Galactic Globular Cluster from which to simulate core ejection or a Galpy orbit instance
 	pot : galpy potential
 		Potentional to be used for orbit integration (default: MWPotential2014)
-	mu0 : float
-		average 1D velocity in the core (default: 0 km/s)
-	sig0 : float
-		avarege 1D velocity disperions in the core (default 10.0 km/s)
-	vesc0 : float
-		escape velocity from the core (default: 10.0 km/s)
-	rho0 : float
-		core density (default: 1 Msun/pc^3)
 	mgc : float
 		globular cluster mass - needed if cluster's potential is to be included in orbit integration of escapers (default: None)
 	rgc : float
 		half-mass radius of globular cluster (assuming Plummer potential) or tidal radius of globular cluster (assuming King potential) (default: None)
 	W0 : float
 		King central potential parameter (default: None, which results in cluster potential taken to be a Plummer)
-	mmin : float
-		minimum stellar mass in core (default (0.1 Msun))
-	mmax : float
-		maximum stellar mass in the core (default: 1.4 Msun)
-	alpha : float
-		slope of the stellar mass function in the core (default: -1.35)
-	emin : float
-		minimum binary energy (default: None)
-	emax : float
-		maximum binary energy (default: None)
 	ro : float
 		galpy length scaling parameter (default: 8.)
 	vo : float
 		galpy veocicity scaling parameter (default: 220.)
-	q : float
-		exponenet for calculating probability of stellar escape from three-body system (#Equation 7.23) (default: -3)
 
 
 	History
@@ -66,10 +46,7 @@ class corespraydf(object):
 
 	"""
 
-	def __init__(self,gcorbit,pot=MWPotential2014,mu0=0.,sig0=10.0,vesc0=10.0,rho0=1.,mgc=None,rgc=None,W0=None,mmin=0.1,mmax=1.4,alpha=-1.35,emin=None,emax=None,ro=8.,vo=220.,q=-3,verbose=False):
-
-		grav=4.302e-3 # pc (km/s)^2 / Msun
-		msolar=1.9891e30
+	def __init__(self,gcorbit,pot=MWPotential2014,mgc=None,rgc=None,W0=None,ro=8.,vo=220.,verbose=False):
 
 		if isinstance(gcorbit,str):
 			self.gcname=gcorbit
@@ -78,6 +55,110 @@ class corespraydf(object):
 			self.gcname='unknown'
 			self.o=gcorbit
 
+		self.ro,self.vo=ro,vo
+		self.to=conversion.time_in_Gyr(ro=self.ro,vo=self.vo)*1000.
+		self.mo=conversion.mass_in_msol(ro=self.ro,vo=self.vo)
+
+		self.mwpot=pot
+
+		if mgc is None:
+			self.gcpot=None
+		else:
+			if W0 is None:
+				ra=rgc/1.3
+				self.gcpot=PlummerPotential(mgc/self.mo,ra/self.ro,ro=self.ro,vo=self.vo)
+			else:
+				self.gcpot=KingPotential(W0,mgc/self.mo,rgc/self.ro,ro=self.ro,vo=self.vo)
+
+		self.binaries=False
+
+
+	def sample_three_body(self,tdisrupt=1000.,rate=1.,nstar=None,mu0=0.,sig0=10.0,vesc0=10.0,rho0=1.,mmin=0.1,mmax=1.4,alpha=-1.35,emin=None,emax=None,q=-3, npeak=5.,binaries=False,verbose=False):
+		""" A function for sampling the three-body interaction core ejection distribution function
+
+		Parameters
+		----------
+
+		tdisrupt : float
+			time over which sampling begins (Myr)
+		rate : float
+			ejection rate (default 1 per Myr)
+		nstar : float
+			if set, nstar stars will be ejected randomly from tdisrupt to 0 Myr. Rate is recalculated. (default : None)
+		mu0 : float
+			average 1D velocity in the core (default: 0 km/s)
+		sig0 : float
+			avarege 1D velocity disperions in the core (default 10.0 km/s)
+		vesc0 : float
+			escape velocity from the core (default: 10.0 km/s)
+		rho0 : float
+			core density (default: 1 Msun/pc^3)
+		mgc : float
+			globular cluster mass - needed if cluster's potential is to be included in orbit integration of escapers (default: None)
+		rgc : float
+			half-mass radius of globular cluster (assuming Plummer potential) or tidal radius of globular cluster (assuming King potential) (default: None)
+		W0 : float
+			King central potential parameter (default: None, which results in cluster potential taken to be a Plummer)
+		mmin : float
+			minimum stellar mass in core (default (0.1 Msun))
+		mmax : float
+			maximum stellar mass in the core (default: 1.4 Msun)
+		alpha : float
+			slope of the stellar mass function in the core (default: -1.35)
+		emin : float
+			minimum binary energy (default: None)
+		emax : float
+			maximum binary energy (default: None)
+		q : float
+			exponenet for calculating probability of stellar escape from three-body system (#Equation 7.23) (default: -3)
+		npeak : float
+			when sampling kick velocity distribution function, sampling range will be from 0 to npeak*vpeak, where vpeak is the peak in the distribution function (default: 5)
+		binaries : bool
+			keep track of binaries that receive recoil kicks greater than the cluster's escape velocity (default : False)
+		verbose : bool
+			print additional information to screen (default: False)
+
+		Returns
+		----------
+		of : orbit
+			galpy orbit instance for kicked stars
+
+		if binaries:
+			obf : orbit
+				galpy orbit instance for recoil binary stars
+
+		History
+		-------
+		2021 - Written - Grandin/Webb (UofT)
+
+		"""
+
+		grav=4.302e-3 #pc/Msun (km/s)^2
+		msolar=1.9891e30
+
+		self.tdisrupt=tdisrupt
+
+
+		#Select escape times
+		#If nstar is not None, randomly select escapers between tstart and tend
+		if nstar is not None:
+			self.nstar=nstar
+			self.rate=nstar/self.tdisrupt
+		else:
+			self.rate=rate
+			self.nstar=self.tdisrupt*rate
+			
+		self.tesc=-1.*self.tdisrupt*np.random.rand(self.nstar)
+
+		ts=np.linspace(0.,-1.*self.tdisrupt/self.to,1000)
+		self.o.integrate(ts,self.mwpot)
+
+		if self.gcpot is None:
+			self.pot=self.mwpot
+		else:
+			moving_pot=MovingObjectPotential(self.o,self.gcpot,ro=self.ro,vo=self.vo)
+			self.pot=[self.mwpot,moving_pot]
+	    
 		self.mu0,self.sig0,self.vesc0,self.rho0=mu0,sig0,vesc0,rho0
 
 		self.mmin,self.mmax,self.alpha=mmin,mmax,alpha
@@ -116,111 +197,8 @@ class corespraydf(object):
 		if verbose:
 			print('Sample Binary Energies between: ',self.emin,' and ',self.emax,' J')
 
-		self.ro,self.vo=ro,vo
-		self.to=conversion.time_in_Gyr(ro=self.ro,vo=self.vo)*1000.
-		self.mo=conversion.mass_in_msol(ro=self.ro,vo=self.vo)
-
-
 		self.q=q
 
-		self.mwpot=pot
-
-		if mgc is None:
-			self.gcpot=None
-		else:
-			if W0 is None:
-				ra=rgc/1.3
-				self.gcpot=PlummerPotential(mgc/self.mo,ra/self.ro,ro=self.ro,vo=self.vo)
-			else:
-				self.gcpot=KingPotential(W0,mgc/self.mo,rgc/self.ro,ro=self.ro,vo=self.vo)
-
-	def sample(self,tdisrupt=1000.,rate=1.,nstar=None,npeak=5.,binaries=False,verbose=False):
-		""" A function for sampling the three-body interaction core ejection distribution function
-
-		Parameters
-		----------
-
-		tdisrupt : float
-			time over which sampling begins (Myr)
-		rate : float
-			ejection rate (default 1 per Myr)
-		nstar : float
-			if set, nstar stars will be ejected randomly from tdisrupt to 0 Myr. Rate is recalculated. (default : None)
-		npeak : float
-			when sampling kick velocity distribution function, sampling range will be from 0 to npeak*vpeak, where vpeak is the peak in the distribution function (default: 5)
-		binaries : bool
-			keep track of binaries that receive recoil kicks greater than the cluster's escape velocity (default : False)
-		verbose : bool
-			print additional information to screen (default: False)
-
-		Returns
-		----------
-
-
-
-		History
-		-------
-		2021 - Written - Grandin/Webb (UofT)
-
-		"""
-
-		return self.sample_three_body(tdisrupt=tdisrupt,rate=rate,nstar=nstar,npeak=npeak,binaries=binaries,verbose=verbose)
-
-	def sample_three_body(self,tdisrupt=1000.,rate=1.,nstar=None,npeak=5.,binaries=False,verbose=False):
-		""" A function for sampling the three-body interaction core ejection distribution function
-
-		Parameters
-		----------
-
-		tdisrupt : float
-			time over which sampling begins (Myr)
-		rate : float
-			ejection rate (default 1 per Myr)
-		nstar : float
-			if set, nstar stars will be ejected randomly from tdisrupt to 0 Myr. Rate is recalculated. (default : None)
-		npeak : float
-			when sampling kick velocity distribution function, sampling range will be from 0 to npeak*vpeak, where vpeak is the peak in the distribution function (default: 5)
-		binaries : bool
-			keep track of binaries that receive recoil kicks greater than the cluster's escape velocity (default : False)
-		verbose : bool
-			print additional information to screen (default: False)
-
-		Returns
-		----------
-
-
-
-		History
-		-------
-		2021 - Written - Grandin/Webb (UofT)
-
-		"""
-
-		grav=4.302e-3 #pc/Msun (km/s)^2
-
-		self.tdisrupt=tdisrupt
-
-
-		#Select escape times
-		#If nstar is not None, randomly select escapers between tstart and tend
-		if nstar is not None:
-			self.nstar=nstar
-			self.rate=nstar/self.tdisrupt
-		else:
-			self.rate=rate
-			self.nstar=self.tdisrupt*rate
-			
-		self.tesc=-1.*self.tdisrupt*np.random.rand(self.nstar)
-
-		ts=np.linspace(0.,-1.*self.tdisrupt/self.to,1000)
-		self.o.integrate(ts,self.mwpot)
-
-		if self.gcpot is None:
-			self.pot=self.mwpot
-		else:
-			moving_pot=MovingObjectPotential(self.o,self.gcpot,ro=self.ro,vo=self.vo)
-			self.pot=[self.mwpot,moving_pot]
-	    
 	    #Generate kick velocities for escaped stars and binaries
 		vxkick=np.zeros(self.nstar)
 		vykick=np.zeros(self.nstar)
@@ -461,7 +439,8 @@ class corespraydf(object):
 
 		Returns
 		----------
-
+		of : orbit
+			galpy orbit instance for kicked stars
 
 
 		History
@@ -469,8 +448,6 @@ class corespraydf(object):
 		2021 - Written - Grandin/Webb (UofT)
 
 		"""
-
-		grav=4.302e-3 #pc/Msun (km/s)^2
 
 		self.tdisrupt=tdisrupt
 
@@ -505,7 +482,106 @@ class corespraydf(object):
 		for i in range(0,self.nstar):
 
 			#Assume a random direction
-			vxs,vys,vzs=np.random.normal(self.mu0,self.sig0,3)
+			vxs,vys,vzs=np.random.normal(0,1.,3)
+			vstar=np.sqrt(vxs**2.+vys**2.+vzs**2.)
+
+			vxkick=self.vesc[i]*(vxs/vstar)
+			vykick=self.vesc[i]*(vys/vstar)
+			vzkick=self.vesc[i]*(vzs/vstar)
+
+			xi,yi,zi=self.o.x(self.tesc[i]/self.to),self.o.y(self.tesc[i]/self.to),self.o.z(self.tesc[i]/self.to)
+			vxi=vxkick+self.o.vx(self.tesc[i]/self.to)
+			vyi=vykick+self.o.vy(self.tesc[i]/self.to)
+			vzi=vzkick+self.o.vz(self.tesc[i]/self.to)
+
+			if verbose: print(i,self.tesc[i],xi,yi,zi,vxi,vyi,vzi)
+
+			#Save initial positions and velocities
+
+			Ri, phii, zi = coords.rect_to_cyl(xi, yi, zi)
+			vRi, vTi, vzi = coords.rect_to_cyl_vec(vxi, vyi, vzi, xi, yi, zi)
+
+			vxvv_i.append([Ri/self.ro, vRi/self.vo, vTi/self.vo, zi/self.ro, vzi/self.vo, phii])
+
+			#Integrate orbit from tesc to 0.
+			os=Orbit(vxvv_i[-1],ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
+			ts=np.linspace(self.tesc[i]/self.to,0.,1000)
+			os.integrate(ts,self.pot)
+
+			#Save final positions and velocities
+			vxvv_f.append([os.R(0.)/self.ro,os.vR(0.)/self.vo,os.vT(0.)/self.vo,os.z(0.)/self.ro,os.vz(0.)/self.vo,os.phi(0.)])
+
+		#Save initial and final positions and velocities of kicked stars at t=0 in orbit objects
+		self.oi=Orbit(vxvv_i,ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
+		self.of=Orbit(vxvv_f,ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
+		
+		return self.of
+
+	def sample_gaussian(self,tdisrupt=1000.,rate=1.,nstar=None,vmean=100.,vsig=10.,verbose=False):
+		""" A function for sampling a uniform core ejection distribution function
+
+		Parameters
+		----------
+
+		tdisrupt : float
+			time over which sampling begins (Myr)
+		rate : float
+			ejection rate (default 1 per Myr)
+		nstar : float
+			if set, nstar stars will be ejected randomly from tdisrupt to 0 Myr. Rate is recalculated. (default : None)
+		vmean : float
+			average kick velocity
+		vsig : float
+			standard deviation of kick velocity distribution
+		verbose : bool
+			print additional information to screen (default: False)
+
+		Returns
+		----------
+		of : orbit
+			galpy orbit instance for kicked stars
+
+
+		History
+		-------
+		2022 - Written - Grandin/Webb (UofT)
+
+		"""
+
+		self.tdisrupt=tdisrupt
+
+
+		#Select escape times
+		#If nstar is not None, randomly select escapers between tstart and tend
+		if nstar is not None:
+			self.nstar=nstar
+			self.rate=nstar/self.tdisrupt
+		else:
+			self.rate=rate
+			self.nstar=self.tdisrupt*rate
+			
+		self.tesc=-1.*self.tdisrupt*np.random.rand(self.nstar)
+
+		ts=np.linspace(0.,-1.*self.tdisrupt/self.to,1000)
+		self.o.integrate(ts,self.mwpot)
+
+		if self.gcpot is None:
+			self.pot=self.mwpot
+		else:
+			moving_pot=MovingObjectPotential(self.o,self.gcpot,ro=self.ro,vo=self.vo)
+			self.pot=[self.mwpot,moving_pot]
+	    
+	    #Generate kick velocities for escaped stars and binaries
+		self.vesc=np.random.normal(vmean,vsig,nstar)
+
+		#Initial and final positions and velocities
+		vxvv_i=[]
+		vxvv_f=[]
+		
+		for i in range(0,self.nstar):
+
+			#Assume a random direction
+			vxs,vys,vzs=np.random.normal(vmean,vsig,3)
 			vstar=np.sqrt(vxs**2.+vys**2.+vzs**2.)
 
 			vxkick=self.vesc[i]*(vxs/vstar)
