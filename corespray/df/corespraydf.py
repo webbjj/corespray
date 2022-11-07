@@ -94,9 +94,9 @@ class corespraydf(object):
 		rho0 : float
 			core density (default: 1 Msun/pc^3)
 		mgc : float
-			globular cluster mass - needed if cluster's potential is to be included in orbit integration of escapers (default: None)
+			globular cluster mass in solar masses - needed if cluster's potential is to be included in orbit integration of escapers (default: None)
 		rgc : float
-			half-mass radius of globular cluster (assuming Plummer potential) or tidal radius of globular cluster (assuming King potential) (default: None)
+			half-mass radius of globular cluster (assuming Plummer potential) or tidal radius of globular cluster (assuming King potential) in kpc (default: None)
 		W0 : float
 			King central potential parameter (default: None, which results in cluster potential taken to be a Plummer)
 		mmin : float
