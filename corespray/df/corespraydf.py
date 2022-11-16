@@ -73,7 +73,7 @@ class corespraydf(object):
 		self.binaries=False
 
 
-	def sample_three_body(self,tdisrupt=1000.,rate=1.,nstar=None,mu0=0.,sig0=10.0,vesc0=10.0,rho0=1.,mmin=0.1,mmax=1.4,alpha=-1.35,emin=None,emax=None,q=-3, npeak=5.,binaries=False,verbose=False):
+	def sample_three_body(self,tdisrupt=1000.,rate=1.,nstar=None,mu0=0.,sig0=10.0,vesc0=10.0,rho0=1.,mmin=0.1,mmax=1.4,alpha=-1.35,emin=None,emax=None,q=-3, npeak=5.,binaries=False,verbose=False, **kwargs):
 		""" A function for sampling the three-body interaction core ejection distribution function
 
 		Parameters
@@ -118,6 +118,12 @@ class corespraydf(object):
 		verbose : bool
 			print additional information to screen (default: False)
 
+		Key Word Arguments
+		----------
+		nrandom : int
+			Nunber of random numbers to sample in a given batch
+
+
 		Returns
 		----------
 		of : orbit
@@ -135,6 +141,8 @@ class corespraydf(object):
 
 		grav=4.302e-3 #pc/Msun (km/s)^2
 		msolar=1.9891e30
+
+		nrandom=kwargs.get('nrandom',1000)
 
 		self.tdisrupt=tdisrupt
 
@@ -245,7 +253,7 @@ class corespraydf(object):
 
 				e0=0.5*(mb*ms/M)*(rdot**2.)-grav*ms*mb/self.rsep + ebin
 
-				vs=self._sample_escape_velocity(e0,ms,mb,npeak)
+				vs=self._sample_escape_velocity(e0,ms,mb,npeak,nrandom)
 
 				if vs >self.vesc0:  
 
@@ -389,18 +397,20 @@ class corespraydf(object):
 
 		return ebin,semi
 
-	def _sample_escape_velocity(self,e0,ms,mb,npeak=5):
+	def _sample_escape_velocity(self,e0,ms,mb,npeak=5,nrandom=1000):
 		#randomly sample between npeak*vs_peak
 
 		vs_peak=self._escape_velocity_distribution_peak(e0,ms,mb)
 		match=False
 
 		while not match:
-			vstemp=np.random.rand()*npeak*vs_peak
-			amptemp=np.random.rand()*vs_peak
+			vstemp=np.random.rand(nrandom)*npeak*vs_peak
+			amptemp=np.random.rand(nrandom)*vs_peak
 
-			if amptemp < self._escape_velocity_distribution(vstemp,e0,ms,mb):
-				vs=vstemp
+			aindx= amptemp < self._escape_velocity_distribution(np.ones(nrandom)*vstemp,np.ones(nrandom)*e0,np.ones(nrandom)*ms,np.ones(nrandom)*mb)
+
+			if np.sum(aindx)>0:
+				vs=vstemp[aindx][0]
 				match=True
 
 		return vs
