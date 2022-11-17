@@ -292,17 +292,17 @@ class corespraydf(object):
 				if verbose: print('DEBUG: ',nescape,prob,vs,self.vesc0)
 		
 
-		self.oi,self.of=_integrate_orbits(vxkick,vykick,vzkick)
+		self.oi,self.of=self._integrate_orbits(vxkick,vykick,vzkick)
 
 		if binaries:
-			self.obi,self.obf=_integrate_orbits(vxkickb,vykickb,vzkickb,binaries)
+			self.obi,self.obf=self._integrate_orbits(vxkickb,vykickb,vzkickb,binaries)
 
 		if binaries:
 			return self.of,self.obf
 		else:
 			return self.of
 
-	def _integrate_orbits(self,vxkick,vykick,vzkick,binaries=False):
+	def _integrate_orbits(self,vxkick,vykick,vzkick,binaries=False,verbose=False):
 		
 		Re0, phie0, ze0, vRe0, vTe0, vze0=np.array([]),np.array([]),np.array([]),np.array([]),np.array([]),np.array([])
 
@@ -325,7 +325,7 @@ class corespraydf(object):
 
 			vxvv_i.append([Ri/self.ro, vRi/self.vo, vTi/self.vo, zi/self.ro, vzi/self.vo, phii])
 
-			if not binaries or (binaries and self.bindx[i])
+			if not binaries or (binaries and self.bindx[i]):
 				#Integrate orbit from tesc to 0.
 				os=Orbit(vxvv_i[-1],ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
 				ts=np.linspace(self.tesc[i]/self.to,0.,1000)
@@ -477,7 +477,7 @@ class corespraydf(object):
 		vykick=self.vesc*(vys/vstar)
 		vzkick=self.vesc*(vzs/vstar)
 
-		self.oi,self.of=_integrate_orbits(vxkick,vykick,vzkick)
+		self.oi,self.of=self._integrate_orbits(vxkick,vykick,vzkick)
 
 		return self.of
 
@@ -549,7 +549,7 @@ class corespraydf(object):
 		vykick=self.vesc*(vys/vstar)
 		vzkick=self.vesc*(vzs/vstar)
 
-		self.oi,self.of=_integrate_orbits(vxkick,vykick,vzkick)
+		self.oi,self.of=self._integrate_orbits(vxkick,vykick,vzkick)
 	
 		return self.of
 
