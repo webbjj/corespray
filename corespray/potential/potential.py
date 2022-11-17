@@ -78,10 +78,10 @@ def load_galpy_potential(mwpot=MWPotential2014, bar=False,dw_arm=False,trans_arm
             power-kaw amplitude of the circular-velocity curve (default : -0.1)
         to : float
             reference time at which the potential reaches maximum in Myr (default : -500 Myr)
-        pa : float (HERE)
-            position angle (default : if bar omega*to, else 1.3*to)
+        pa : float
+            position angle (default : if bar omega*to, else 35.75 km s−1 kpc−1 * to)
         sigma : float
-            standard deviation of Gaussian Wrapper potential (default : 1.3)
+            standard deviation of Gaussian Wrapper potential (default : 46.2 Myr)
         transwrap : bool
             Use TransientWrapperPotential for transient spiral arm potential (default : True)
             Note - this is the preferred method if there are arms that don't start until later in the simulation
@@ -167,7 +167,7 @@ def load_galpy_potential(mwpot=MWPotential2014, bar=False,dw_arm=False,trans_arm
         else:
             pa=kwargs.get('pa',35.75*(ro/vo)*to)
 
-        sigma = kwargs.get('sigma',1.3)
+        sigma = kwargs.get('sigma',46.222905024910034)/(1000.0*tcon)
 
         if tstart==None:
             
