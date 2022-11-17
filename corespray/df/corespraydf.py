@@ -291,6 +291,19 @@ class corespraydf(object):
 
 				if verbose: print('DEBUG: ',nescape,prob,vs,self.vesc0)
 		
+
+		self.oi,self.of=_integrate_orbits(vxkick,vykick,vzkick)
+
+		if binaries:
+			self.obi,self.obf=_integrate_orbits(vxkickb,vykickb,vzkickb,binaries)
+
+		if binaries:
+			return self.of,self.obf
+		else:
+			return self.of
+
+	def _integrate_orbits(self,vxkick,vykick,vzkick,binaries=False):
+		
 		Re0, phie0, ze0, vRe0, vTe0, vze0=np.array([]),np.array([]),np.array([]),np.array([]),np.array([]),np.array([])
 
 		#Initial and final positions and velocities
@@ -312,57 +325,24 @@ class corespraydf(object):
 
 			vxvv_i.append([Ri/self.ro, vRi/self.vo, vTi/self.vo, zi/self.ro, vzi/self.vo, phii])
 
-			#Integrate orbit from tesc to 0.
-			os=Orbit(vxvv_i[-1],ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
-			ts=np.linspace(self.tesc[i]/self.to,0.,1000)
-			os.integrate(ts,self.pot)
+			if not binaries or (binaries and self.bindx[i])
+				#Integrate orbit from tesc to 0.
+				os=Orbit(vxvv_i[-1],ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
+				ts=np.linspace(self.tesc[i]/self.to,0.,1000)
+				os.integrate(ts,self.pot)
 
-			#Save final positions and velocities
-			vxvv_f.append([os.R(0.)/self.ro,os.vR(0.)/self.vo,os.vT(0.)/self.vo,os.z(0.)/self.ro,os.vz(0.)/self.vo,os.phi(0.)])
+				#Save final positions and velocities
+				vxvv_f.append([os.R(0.)/self.ro,os.vR(0.)/self.vo,os.vT(0.)/self.vo,os.z(0.)/self.ro,os.vz(0.)/self.vo,os.phi(0.)])
+
+			elif binaries and not self.bindx[i]:
+				vxvv_f.append([self.o.R(0.)/self.ro,self.o.vR(0.)/self.vo,self.o.vT(0.)/self.vo,self.o.z(0.)/self.ro,self.o.vz(0.)/self.vo,self.o.phi(0.)])
+
 
 		#Save initial and final positions and velocities of kicked stars at t=0 in orbit objects
-		self.oi=Orbit(vxvv_i,ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
-		self.of=Orbit(vxvv_f,ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
+		oi=Orbit(vxvv_i,ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
+		of=Orbit(vxvv_f,ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
 
-		if binaries:
-			#Integrate orbits of binary star with kick velocities greater than the cluster's escape speed:
-			#Initial and final positions and velocities
-			vxvvb_i=[]
-			vxvvb_f=[]
-
-			for i in range(0,self.nstar):
-				xi,yi,zi=self.o.x(self.tesc[i]/self.to),self.o.y(self.tesc[i]/self.to),self.o.z(self.tesc[i]/self.to)
-				vxi=vxkickb[i]+self.o.vx(self.tesc[i]/self.to)
-				vyi=vykickb[i]+self.o.vy(self.tesc[i]/self.to)
-				vzi=vzkickb[i]+self.o.vz(self.tesc[i]/self.to)
-
-				if verbose: print('Binary ',i,self.tesc[i],xi,yi,zi,vxi,vyi,vzi)
-
-				#Save initial positions and velocities
-				Ri, phii, zi = coords.rect_to_cyl(xi, yi, zi)
-				vRi, vTi, vzi = coords.rect_to_cyl_vec(vxi, vyi, vzi, xi, yi, zi)
-
-
-				vxvvb_i.append([Ri/self.ro, vRi/self.vo, vTi/self.vo, zi/self.ro, vzi/self.vo, phii])
-
-				#Integrate orbit from tesc to 0. if kick velocity is higher than cluster's escape velocity
-
-				if self.bindx[i]:
-					os=Orbit(vxvvb_i[-1],ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
-					ts=np.linspace(self.tesc[i]/self.to,0.,1000)
-					os.integrate(ts,self.pot)
-					vxvvb_f.append([os.R(0.)/self.ro,os.vR(0.)/self.vo,os.vT(0.)/self.vo,os.z(0.)/self.ro,os.vz(0.)/self.vo,os.phi(0.)])
-
-				else:
-					vxvvb_f.append([self.o.R(0.)/self.ro,self.o.vR(0.)/self.vo,self.o.vT(0.)/self.vo,self.o.z(0.)/self.ro,self.o.vz(0.)/self.vo,self.o.phi(0.)])
-
-			self.obi=Orbit(vxvvb_i,ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
-			self.obf=Orbit(vxvvb_f,ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
-
-		if binaries:
-			return self.of,self.obf
-		else:
-			return self.of
+		return oi,of
 
 	def _prob_three_body_escape(self,ms,m_a,m_b,q):
 
@@ -485,46 +465,20 @@ class corespraydf(object):
 	    #Generate kick velocities for escaped stars and binaries
 		self.vesc=vmin+(vmax-vmin)*np.random.rand(self.nstar)
 
-		#Initial and final positions and velocities
-		vxvv_i=[]
-		vxvv_f=[]
-		
-		for i in range(0,self.nstar):
 
-			#Assume a random direction
-			vxs,vys,vzs=np.random.normal(0,1.,3)
-			vstar=np.sqrt(vxs**2.+vys**2.+vzs**2.)
+		#Assume a random direction
+		vxs=np.random.normal(0,1.,self.nstar)
+		vys=np.random.normal(0,1.,self.nstar)
+		vzs=np.random.normal(0,1.,self.nstar)
 
-			vxkick=self.vesc[i]*(vxs/vstar)
-			vykick=self.vesc[i]*(vys/vstar)
-			vzkick=self.vesc[i]*(vzs/vstar)
+		vstar=np.sqrt(vxs**2.+vys**2.+vzs**2.)
 
-			xi,yi,zi=self.o.x(self.tesc[i]/self.to),self.o.y(self.tesc[i]/self.to),self.o.z(self.tesc[i]/self.to)
-			vxi=vxkick+self.o.vx(self.tesc[i]/self.to)
-			vyi=vykick+self.o.vy(self.tesc[i]/self.to)
-			vzi=vzkick+self.o.vz(self.tesc[i]/self.to)
+		vxkick=self.vesc*(vxs/vstar)
+		vykick=self.vesc*(vys/vstar)
+		vzkick=self.vesc*(vzs/vstar)
 
-			if verbose: print(i,self.tesc[i],xi,yi,zi,vxi,vyi,vzi)
+		self.oi,self.of=_integrate_orbits(vxkick,vykick,vzkick)
 
-			#Save initial positions and velocities
-
-			Ri, phii, zi = coords.rect_to_cyl(xi, yi, zi)
-			vRi, vTi, vzi = coords.rect_to_cyl_vec(vxi, vyi, vzi, xi, yi, zi)
-
-			vxvv_i.append([Ri/self.ro, vRi/self.vo, vTi/self.vo, zi/self.ro, vzi/self.vo, phii])
-
-			#Integrate orbit from tesc to 0.
-			os=Orbit(vxvv_i[-1],ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
-			ts=np.linspace(self.tesc[i]/self.to,0.,1000)
-			os.integrate(ts,self.pot)
-
-			#Save final positions and velocities
-			vxvv_f.append([os.R(0.)/self.ro,os.vR(0.)/self.vo,os.vT(0.)/self.vo,os.z(0.)/self.ro,os.vz(0.)/self.vo,os.phi(0.)])
-
-		#Save initial and final positions and velocities of kicked stars at t=0 in orbit objects
-		self.oi=Orbit(vxvv_i,ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
-		self.of=Orbit(vxvv_f,ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
-		
 		return self.of
 
 	def sample_gaussian(self,tdisrupt=1000.,rate=1.,nstar=None,vmean=100.,vsig=10.,verbose=False):
@@ -584,46 +538,19 @@ class corespraydf(object):
 	    #Generate kick velocities for escaped stars and binaries
 		self.vesc=np.random.normal(vmean,vsig,nstar)
 
-		#Initial and final positions and velocities
-		vxvv_i=[]
-		vxvv_f=[]
-		
-		for i in range(0,self.nstar):
+		#Assume a random direction
+		vxs=np.random.normal(vmean,vsig,self.nstar)
+		vys=np.random.normal(vmean,vsig,self.nstar)
+		vzs=np.random.normal(vmean,vsig,self.nstar)
 
-			#Assume a random direction
-			vxs,vys,vzs=np.random.normal(vmean,vsig,3)
-			vstar=np.sqrt(vxs**2.+vys**2.+vzs**2.)
+		vstar=np.sqrt(vxs**2.+vys**2.+vzs**2.)
 
-			vxkick=self.vesc[i]*(vxs/vstar)
-			vykick=self.vesc[i]*(vys/vstar)
-			vzkick=self.vesc[i]*(vzs/vstar)
+		vxkick=self.vesc*(vxs/vstar)
+		vykick=self.vesc*(vys/vstar)
+		vzkick=self.vesc*(vzs/vstar)
 
-			xi,yi,zi=self.o.x(self.tesc[i]/self.to),self.o.y(self.tesc[i]/self.to),self.o.z(self.tesc[i]/self.to)
-			vxi=vxkick+self.o.vx(self.tesc[i]/self.to)
-			vyi=vykick+self.o.vy(self.tesc[i]/self.to)
-			vzi=vzkick+self.o.vz(self.tesc[i]/self.to)
-
-			if verbose: print(i,self.tesc[i],xi,yi,zi,vxi,vyi,vzi)
-
-			#Save initial positions and velocities
-
-			Ri, phii, zi = coords.rect_to_cyl(xi, yi, zi)
-			vRi, vTi, vzi = coords.rect_to_cyl_vec(vxi, vyi, vzi, xi, yi, zi)
-
-			vxvv_i.append([Ri/self.ro, vRi/self.vo, vTi/self.vo, zi/self.ro, vzi/self.vo, phii])
-
-			#Integrate orbit from tesc to 0.
-			os=Orbit(vxvv_i[-1],ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
-			ts=np.linspace(self.tesc[i]/self.to,0.,1000)
-			os.integrate(ts,self.pot)
-
-			#Save final positions and velocities
-			vxvv_f.append([os.R(0.)/self.ro,os.vR(0.)/self.vo,os.vT(0.)/self.vo,os.z(0.)/self.ro,os.vz(0.)/self.vo,os.phi(0.)])
-
-		#Save initial and final positions and velocities of kicked stars at t=0 in orbit objects
-		self.oi=Orbit(vxvv_i,ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
-		self.of=Orbit(vxvv_f,ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
-		
+		self.oi,self.of=_integrate_orbits(vxkick,vykick,vzkick)
+	
 		return self.of
 
 
