@@ -292,10 +292,10 @@ class corespraydf(object):
 				if verbose: print('DEBUG: ',nescape,prob,vs,self.vesc0)
 		
 
-		self.oi,self.of=self._integrate_orbits(vxkick,vykick,vzkick)
+		self.oi,self.of=self._integrate_orbits(vxkick,vykick,vzkick,False,verbose)
 
 		if binaries:
-			self.obi,self.obf=self._integrate_orbits(vxkickb,vykickb,vzkickb,binaries)
+			self.obi,self.obf=self._integrate_orbits(vxkickb,vykickb,vzkickb,binaries,verbose)
 
 		if binaries:
 			return self.of,self.obf
