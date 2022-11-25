@@ -16,6 +16,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import animation
 
+import time
+
 
 class corespraydf(object):
 
@@ -46,7 +48,7 @@ class corespraydf(object):
 
 	"""
 
-	def __init__(self,gcorbit,pot=MWPotential2014,mgc=None,rgc=None,W0=None,ro=8.,vo=220.,verbose=False):
+	def __init__(self,gcorbit,pot=MWPotential2014,mgc=None,rgc=None,W0=None,ro=8.,vo=220.,verbose=False, timing=False):
 
 		if isinstance(gcorbit,str):
 			self.gcname=gcorbit
@@ -71,6 +73,8 @@ class corespraydf(object):
 				self.gcpot=KingPotential(W0,mgc/self.mo,rgc/self.ro,ro=self.ro,vo=self.vo)
 
 		self.binaries=False
+
+		self.timing=timing
 
 
 	def sample_three_body(self,tdisrupt=1000.,rate=1.,nstar=None,mu0=0.,sig0=10.0,vesc0=10.0,rho0=1.,mmin=0.1,mmax=1.4,alpha=-1.35,emin=None,emax=None,q=-3, npeak=5.,binaries=False,verbose=False, **kwargs):
@@ -143,6 +147,7 @@ class corespraydf(object):
 		msolar=1.9891e30
 
 		nrandom=kwargs.get('nrandom',1000)
+		self.timing=kwargs.get('timing',self.timing)
 
 		self.tdisrupt=tdisrupt
 
@@ -233,6 +238,8 @@ class corespraydf(object):
 			self.binaries=False
 
 
+		if self.timing: dttime=time.time()
+
 		while nescape < self.nstar:
 			ms,m_a,m_b=self._power_law_distribution_function(3, self.alpha, self.mmin, self.mmax)   
 			mb=m_a+m_b
@@ -289,8 +296,9 @@ class corespraydf(object):
 
 				    nescape+=1
 
-				if verbose: print('DEBUG: ',nescape,prob,vs,self.vesc0)
+				if verbose: print('Sampling: ',nescape,prob,vs,self.vesc0)
 		
+		if self.timing: print(nescape,' three body encounters simulated in ', time.time()-dttime,' s')
 
 		self.oi,self.of=self._integrate_orbits(vxkick,vykick,vzkick,False,verbose)
 
@@ -310,7 +318,12 @@ class corespraydf(object):
 		vxvv_i=[]
 		vxvv_f=[]
 
+		if self.timing: dttottime=time.time()
+
+
 		for i in range(0,self.nstar):
+			if self.timing: dttime=time.time()
+
 			xi,yi,zi=self.o.x(self.tesc[i]/self.to),self.o.y(self.tesc[i]/self.to),self.o.z(self.tesc[i]/self.to)
 			vxi=vxkick[i]+self.o.vx(self.tesc[i]/self.to)
 			vyi=vykick[i]+self.o.vy(self.tesc[i]/self.to)
@@ -337,6 +350,10 @@ class corespraydf(object):
 			elif binaries and not self.bindx[i]:
 				vxvv_f.append([self.o.R(0.)/self.ro,self.o.vR(0.)/self.vo,self.o.vT(0.)/self.vo,self.o.z(0.)/self.ro,self.o.vz(0.)/self.vo,self.o.phi(0.)])
 
+
+			if self.timing: print('ORBIT ',i,' INTEGRATED FROM %f IN' % self.tesc[i],time.time()-dttime,' s' )
+
+		if self.timing: print('ALL ORBITS INTEGRATED IN',time.time()-dttottime,' s' )
 
 		#Save initial and final positions and velocities of kicked stars at t=0 in orbit objects
 		oi=Orbit(vxvv_i,ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
