@@ -300,18 +300,26 @@ class corespraydf(object):
 		
 		if self.timing: print(nescape,' three body encounters simulated in ', time.time()-dttime,' s')
 
-		self.oi,self.of=self._integrate_orbits(vxkick,vykick,vzkick,False,verbose)
+		self.oi,self.of=self._integrate_orbits(vxkick,vykick,vzkick,False,verbose,**kwargs)
 
 		if binaries:
-			self.obi,self.obf=self._integrate_orbits(vxkickb,vykickb,vzkickb,binaries,verbose)
+			self.obi,self.obf=self._integrate_orbits(vxkickb,vykickb,vzkickb,binaries,verbose,**kwargs)
 
 		if binaries:
 			return self.of,self.obf
 		else:
 			return self.of
 
-	def _integrate_orbits(self,vxkick,vykick,vzkick,binaries=False,verbose=False):
+	def _integrate_orbits(self,vxkick,vykick,vzkick,binaries=False,verbose=False,**kwargs):
 		
+		#Set integration method (see https://docs.galpy.org/en/v1.7.2/orbit.html)
+		method=kwargs.get('method','dop853_c')
+		#Add a minimal offset to prevent stars from being initialized at r=0 in a the cluster.
+		offset=kwargs.get('offset',1e-9)
+		xoffsets=np.random.normal(0.0,offset,len(vxkick))
+		yoffsets=np.random.normal(0.0,offset,len(vykick))
+		zoffsets=np.random.normal(0.0,offset,len(vzkick))
+
 		Re0, phie0, ze0, vRe0, vTe0, vze0=np.array([]),np.array([]),np.array([]),np.array([]),np.array([]),np.array([])
 
 		#Initial and final positions and velocities
@@ -324,7 +332,7 @@ class corespraydf(object):
 		for i in range(0,self.nstar):
 			if self.timing: dttime=time.time()
 
-			xi,yi,zi=self.o.x(self.tesc[i]/self.to),self.o.y(self.tesc[i]/self.to),self.o.z(self.tesc[i]/self.to)
+			xi,yi,zi=self.o.x(self.tesc[i]/self.to)+xoffsets[i],self.o.y(self.tesc[i]/self.to)+yoffsets[i],self.o.z(self.tesc[i]/self.to)+zoffsets[i]
 			vxi=vxkick[i]+self.o.vx(self.tesc[i]/self.to)
 			vyi=vykick[i]+self.o.vy(self.tesc[i]/self.to)
 			vzi=vzkick[i]+self.o.vz(self.tesc[i]/self.to)
@@ -341,8 +349,9 @@ class corespraydf(object):
 			if not binaries or (binaries and self.bindx[i]):
 				#Integrate orbit from tesc to 0.
 				os=Orbit(vxvv_i[-1],ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
-				ts=np.linspace(self.tesc[i]/self.to,0.,1000)
-				os.integrate(ts,self.pot)
+				ts=np.linspace(self.tesc[i]/self.to,0.,10000)
+
+				os.integrate(ts,self.pot,method=method)
 
 				#Save final positions and velocities
 				vxvv_f.append([os.R(0.)/self.ro,os.vR(0.)/self.vo,os.vT(0.)/self.vo,os.z(0.)/self.ro,os.vz(0.)/self.vo,os.phi(0.)])
@@ -351,7 +360,7 @@ class corespraydf(object):
 				vxvv_f.append([self.o.R(0.)/self.ro,self.o.vR(0.)/self.vo,self.o.vT(0.)/self.vo,self.o.z(0.)/self.ro,self.o.vz(0.)/self.vo,self.o.phi(0.)])
 
 
-			if self.timing: print('ORBIT ',i,' INTEGRATED FROM %f IN' % self.tesc[i],time.time()-dttime,' s' )
+			if self.timing: print('ORBIT ',i,' INTEGRATED FROM %f WITH VK= %f KM/S IN' % (self.tesc[i],self.vesc[i]),time.time()-dttime,' s (Rp=%f)' % os.rperi())
 
 		if self.timing: print('ALL ORBITS INTEGRATED IN',time.time()-dttottime,' s' )
 
@@ -494,7 +503,7 @@ class corespraydf(object):
 		vykick=self.vesc*(vys/vstar)
 		vzkick=self.vesc*(vzs/vstar)
 
-		self.oi,self.of=self._integrate_orbits(vxkick,vykick,vzkick)
+		self.oi,self.of=self._integrate_orbits(vxkick,vykick,vzkick,**kwargs)
 
 		return self.of
 
@@ -566,7 +575,7 @@ class corespraydf(object):
 		vykick=self.vesc*(vys/vstar)
 		vzkick=self.vesc*(vzs/vstar)
 
-		self.oi,self.of=self._integrate_orbits(vxkick,vykick,vzkick)
+		self.oi,self.of=self._integrate_orbits(vxkick,vykick,vzkick,**kwargs)
 	
 		return self.of
 
