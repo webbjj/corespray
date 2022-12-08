@@ -131,8 +131,9 @@ class corespraydf(object):
 		ntsteps : int
 			Number of time steps to take for orbit integration
 		rsample : bool
-			Same separation between single star and binary within core (default: False)
-
+			Sample separation between single star and binary within core (default: False)
+		nrsep : float
+			Numer of mean separations to sample out to when sampling separation between single and binary stars (default : 2)
 
 		Returns
 		----------
@@ -172,6 +173,7 @@ class corespraydf(object):
 		self.tesc=-1.*self.tdisrupt*np.random.rand(self.nstar)
 
 		ntstep=kwargs.get('ntstep',10000)
+		nrsep=kwargs.get('nrsep',2)
 		method=kwargs.get('method',None)
 
 		ts=np.linspace(0.,-1.*self.tdisrupt/self.to,ntstep)
@@ -288,7 +290,7 @@ class corespraydf(object):
 
 				if rsample:
 
-					rs=self.rc*np.random.rand()
+					rs=np.random.rand()*nrsep*self.rsep
 					phis=2.0*np.pi*np.random.rand()
 					thetas=np.arccos(1.0-2.0*np.random.rand())
 
