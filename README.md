@@ -20,8 +20,4 @@ where ‘PATH’ is a directory that you do have permission to write in and is i
 
 # Requirements  
 
-corespray requires the following python packages:  
-
-galpy (https://docs.galpy.org/en/v1.8.1/)  
-matplotlib   
-numpy  
+corespray requires the following python packages: [galpy](https://docs.galpy.org/en/v1.8.1/), [matplotlib](https://matplotlib.org/), [numpy](https://numpy.org/)
