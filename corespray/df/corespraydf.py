@@ -77,7 +77,7 @@ class corespraydf(object):
 		self.timing=timing
 
 
-	def sample_three_body(self,tdisrupt=1000.,rate=1.,nstar=None,mu0=0.,sig0=10.0,vesc0=10.0,rho0=1.,mmin=0.1,mmax=1.4,alpha=-1.35,emin=None,emax=None,q=-3, npeak=5.,binaries=False,verbose=False, **kwargs):
+	def sample_three_body(self,tdisrupt=1000.,rate=1.,nstar=None,mu0=0.,sig0=10.0,vesc0=10.0,rho0=1.,mmin=0.1,mmax=1.4,alpha=-1.35,masses=None,emin=None,emax=None,q=-3, npeak=5.,binaries=False,verbose=False, **kwargs):
 		""" A function for sampling the three-body interaction core ejection distribution function
 
 		Parameters
@@ -109,6 +109,8 @@ class corespraydf(object):
 			maximum stellar mass in the core (default: 1.4 Msun)
 		alpha : float
 			slope of the stellar mass function in the core (default: -1.35)
+		masses : float
+			array of masses to be used instead of drawing for a power-law mass function (default: None)
 		emin : float
 			minimum binary energy (default: None)
 		emax : float
@@ -126,6 +128,10 @@ class corespraydf(object):
 		----------
 		nrandom : int
 			Nunber of random numbers to sample in a given batch
+		ntsteps : int
+			Number of time steps to take for orbit integration
+		rsample : bool
+			Same separation between single star and binary within core (default: False)
 
 
 		Returns
@@ -151,6 +157,8 @@ class corespraydf(object):
 
 		self.tdisrupt=tdisrupt
 
+		rsample=kwargs.get('rsample',False)
+
 
 		#Select escape times
 		#If nstar is not None, randomly select escapers between tstart and tend
@@ -163,8 +171,15 @@ class corespraydf(object):
 			
 		self.tesc=-1.*self.tdisrupt*np.random.rand(self.nstar)
 
-		ts=np.linspace(0.,-1.*self.tdisrupt/self.to,1000)
-		self.o.integrate(ts,self.mwpot)
+		ntstep=kwargs.get('ntstep',10000)
+		method=kwargs.get('method',None)
+
+		ts=np.linspace(0.,-1.*self.tdisrupt/self.to,ntstep)
+
+		if method is not None:
+			self.o.integrate(ts,self.mwpot,method=method)
+		else:
+			self.o.integrate(ts,self.mwpot)
 
 		if self.gcpot is None:
 			self.pot=self.mwpot
@@ -174,13 +189,19 @@ class corespraydf(object):
 	    
 		self.mu0,self.sig0,self.vesc0,self.rho0=mu0,sig0,vesc0,rho0
 
-		self.mmin,self.mmax,self.alpha=mmin,mmax,alpha
+		if masses is None:
+			self.mmin,self.mmax,self.alpha=mmin,mmax,alpha
+			#Mean separation of star's in the core equal to twice the radius of a sphere that contains one star
+			#Assume all stars in the core have mass equal to the mean mass
+			self.masses=self._power_law_distribution_function(1000, self.alpha, self.mmin, self.mmax)
+		else:
+			self.masses=masses
 
-		#Mean separation of star's in the core equal to twice the radius of a sphere that contains one star
-		#Assume all stars in the core have mass equal to the mean mass
-		masses=self._power_law_distribution_function(1000, self.alpha, self.mmin, self.mmax)
-		self.mbar=np.mean(masses)
+		self.mbar=np.mean(self.masses)
 		self.rsep=((self.mbar/self.rho0)/(4.*np.pi/3.))**(1./3.)
+
+		if not rsample:
+			self.dr=self.rsep
 
 		#Limits of binary energy distribution
 		#If emin and emax are None, assume limits are between twice the hard-soft boundary and twice the contact boundary between two solar mass stars
@@ -223,6 +244,9 @@ class corespraydf(object):
 
 		self.vesc=np.array([])
 
+		if rsample:
+			self.dr=np.array([])
+
 		nescape=0
 
 		self.mstar=np.zeros(self.nstar)
@@ -241,7 +265,11 @@ class corespraydf(object):
 		if self.timing: dttime=time.time()
 
 		while nescape < self.nstar:
-			ms,m_a,m_b=self._power_law_distribution_function(3, self.alpha, self.mmin, self.mmax)   
+			if masses is None:
+				ms,m_a,m_b=self._power_law_distribution_function(3, self.alpha, self.mmin, self.mmax)
+			else:
+				ms,m_a,m_b=np.random.choice(self.masses,3)
+
 			mb=m_a+m_b
 			M=ms+mb
 
@@ -258,7 +286,31 @@ class corespraydf(object):
 
 				ebin,semi=self._sample_binding_energy(m_a,m_b,-1,self.emin,self.emax)
 
-				e0=0.5*(mb*ms/M)*(rdot**2.)-grav*ms*mb/self.rsep + ebin
+				if rsample:
+
+					rs=self.rc*np.random.rand()
+					phis=2.0*np.pi*np.random.rand()
+					thetas=np.arccos(1.0-2.0*np.random.rand())
+
+					xs=rs*np.cos(phis)*np.sin(thetas)
+					ys=rs*np.sin(phis)*np.sin(thetas)
+					zs=rs*np.cos(thetas)
+
+					rb=self.rc*np.random.rand()
+					phib=2.0*np.pi*np.random.rand()
+					thetab=np.arccos(1.0-2.0*np.random.rand())
+
+					xb=rb*np.cos(phib)*np.sin(thetab)
+					yb=rb*np.sin(phib)*np.sin(thetab)
+					zb=rb*np.cos(thetab)
+
+					dr=np.sqrt((xs-xb)**2.+(ys-yb)**2.+(zs-zb)**2.)
+
+					self.dr=np.append(self.dr,dr)
+
+					e0=0.5*(mb*ms/M)*(rdot**2.)-grav*ms*mb/dr + ebin
+				else:
+					e0=0.5*(mb*ms/M)*(rdot**2.)-grav*ms*mb/self.rsep + ebin
 
 				vs=self._sample_escape_velocity(e0,ms,mb,npeak,nrandom)
 
@@ -313,7 +365,7 @@ class corespraydf(object):
 	def _integrate_orbits(self,vxkick,vykick,vzkick,binaries=False,verbose=False,**kwargs):
 		
 		#Set integration method (see https://docs.galpy.org/en/v1.7.2/orbit.html)
-		method=kwargs.get('method','dop853_c')
+		method=kwargs.get('method',None)
 		#Add a minimal offset to prevent stars from being initialized at r=0 in a the cluster.
 		offset=kwargs.get('offset',1e-9)
 		xoffsets=np.random.normal(0.0,offset,len(vxkick))
@@ -349,9 +401,14 @@ class corespraydf(object):
 			if not binaries or (binaries and self.bindx[i]):
 				#Integrate orbit from tesc to 0.
 				os=Orbit(vxvv_i[-1],ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
-				ts=np.linspace(self.tesc[i]/self.to,0.,10000)
 
-				os.integrate(ts,self.pot,method=method)
+				ntstep=kwargs.get('ntstep',10000)
+				ts=np.linspace(self.tesc[i]/self.to,0.,ntstep)
+
+				if method is None:
+					os.integrate(ts,self.pot) 
+				else:
+					os.integrate(ts,self.pot,method=method)
 
 				#Save final positions and velocities
 				vxvv_f.append([os.R(0.)/self.ro,os.vR(0.)/self.vo,os.vT(0.)/self.vo,os.z(0.)/self.ro,os.vz(0.)/self.vo,os.phi(0.)])
@@ -479,7 +536,8 @@ class corespraydf(object):
 			
 		self.tesc=-1.*self.tdisrupt*np.random.rand(self.nstar)
 
-		ts=np.linspace(0.,-1.*self.tdisrupt/self.to,1000)
+		ntstep=kwargs.get('ntstep',10000)
+		ts=np.linspace(0.,-1.*self.tdisrupt/self.to,ntstep)
 		self.o.integrate(ts,self.mwpot)
 
 		if self.gcpot is None:
@@ -552,7 +610,8 @@ class corespraydf(object):
 			
 		self.tesc=-1.*self.tdisrupt*np.random.rand(self.nstar)
 
-		ts=np.linspace(0.,-1.*self.tdisrupt/self.to,1000)
+		ntstep=kwargs.get('ntstep',10000)
+		ts=np.linspace(0.,-1.*self.tdisrupt/self.to,ntstep)
 		self.o.integrate(ts,self.mwpot)
 
 		if self.gcpot is None:
