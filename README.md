@@ -1,13 +1,13 @@
 # corespray
-A python packaged for sampling a distribution function for stars that have been ejected from a star cluster's core
+A python package for sampling a distribution function for stars that have been ejected from a star cluster's core.
 
-To install clustertools, simply clone the GitHub repository and install via setup tools:
+To install corespray from GitHub, clone the repository and install via setup tools:
 
-git clone https://github.com/webbjj/corespray.git 
-cd clustertools 
-python setup.py install 
+git clone https://github.com/webbjj/corespray.git  
+cd corespray  
+python setup.py install  
 
-Please note that if you don’t have permission to write files to the default install location (often /usr/local/lib), you will either need to run
+Please note that if you don’t have permission to write files to the default install location (often /usr/local/lib), you will either need to run:
 
 sudo python setup.py install 
 
