@@ -298,7 +298,7 @@ class corespraydf(object):
 					ys=rs*np.sin(phis)*np.sin(thetas)
 					zs=rs*np.cos(thetas)
 
-					rb=self.rc*np.random.rand()
+					rb=np.random.rand()*nrsep*self.rsep
 					phib=2.0*np.pi*np.random.rand()
 					thetab=np.arccos(1.0-2.0*np.random.rand())
 
