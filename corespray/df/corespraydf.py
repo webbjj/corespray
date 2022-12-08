@@ -308,8 +308,6 @@ class corespraydf(object):
 
 					dr=np.sqrt((xs-xb)**2.+(ys-yb)**2.+(zs-zb)**2.)
 
-					self.dr=np.append(self.dr,dr)
-
 					e0=0.5*(mb*ms/M)*(rdot**2.)-grav*ms*mb/dr + ebin
 				else:
 					e0=0.5*(mb*ms/M)*(rdot**2.)-grav*ms*mb/self.rsep + ebin
@@ -319,7 +317,7 @@ class corespraydf(object):
 				if vs >self.vesc0:  
 
 				    self.vesc=np.append(self.vesc,vs)
-
+				    self.dr=np.append(self.dr,dr)
 				    vxkick[nescape]=vs*(vxs/vstar)
 				    vykick[nescape]=vs*(vys/vstar)
 				    vzkick[nescape]=vs*(vzs/vstar)
