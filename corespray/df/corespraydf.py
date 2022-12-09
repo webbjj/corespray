@@ -122,9 +122,9 @@ class corespraydf(object):
 			fixed mass for binary star B (default: None)
 			Note : (mmin, mmax, alpha) or (masses) must still be provided to determine the mean mass in the core
 		emin : float
-			minimum binary energy (default: None)
+			minimum binary energy in Joules (default: None)
 		emax : float
-			maximum binary energy (default: None)
+			maximum binary energy in Joules (default: None)
 		balpha : float
 			power-law slope of initial binary binding energy distribution (default: -1)
 		q : float
@@ -255,8 +255,7 @@ class corespraydf(object):
 
 		self.vesc=np.array([])
 
-		if rsample:
-			self.dr=np.array([])
+		self.dr=np.array([])
 
 		nescape=0
 

@@ -97,9 +97,9 @@ where the parameters are defined as follows
 			fixed mass for binary star B (default: None)
 			Note : (mmin, mmax, alpha) or (masses) must still be provided to determine the mean mass in the core
 		emin : float
-			minimum binary energy (default: None)
+			minimum binary energy in Joules (default: None)
 		emax : float
-			maximum binary energy (default: None)
+			maximum binary energy in Joules (default: None)
 			Note: If emin and emax are None, assume limits are between twice the hard-soft boundary and twice the contact boundary between two solar mass stars
 		balpha : float
 			power-law slope of initial binary binding energy distribution (default: -1)
