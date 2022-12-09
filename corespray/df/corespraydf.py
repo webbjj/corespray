@@ -111,6 +111,12 @@ class corespraydf(object):
 			slope of the stellar mass function in the core (default: -1.35)
 		masses : float
 			array of masses to be used instead of drawing for a power-law mass function (default: None)
+		ms : float
+			fixed mass for single star (default: None)
+		m_a : float
+			fixed mass for binary star A (default: None)
+		m_b : float
+			fixed mass for binary star B (default: None)
 		emin : float
 			minimum binary energy (default: None)
 		emax : float
@@ -201,9 +207,6 @@ class corespraydf(object):
 
 		self.mbar=np.mean(self.masses)
 		self.rsep=((self.mbar/self.rho0)/(4.*np.pi/3.))**(1./3.)
-
-		if not rsample:
-			self.dr=self.rsep
 
 		#Limits of binary energy distribution
 		#If emin and emax are None, assume limits are between twice the hard-soft boundary and twice the contact boundary between two solar mass stars
@@ -325,6 +328,7 @@ class corespraydf(object):
 					e0=0.5*(mb*ms/M)*(rdot**2.)-grav*ms*mb/dr + ebin
 				else:
 					e0=0.5*(mb*ms/M)*(rdot**2.)-grav*ms*mb/self.rsep + ebin
+					dr=self.rsep
 
 				vs=self._sample_escape_velocity(e0,ms,mb,npeak,nrandom)
 
