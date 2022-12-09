@@ -77,7 +77,7 @@ class corespraydf(object):
 		self.timing=timing
 
 
-	def sample_three_body(self,tdisrupt=1000.,rate=1.,nstar=None,mu0=0.,sig0=10.0,vesc0=10.0,rho0=1.,mmin=0.1,mmax=1.4,alpha=-1.35,masses=None,ms=None,m_a=None,m_b=None,emin=None,emax=None,q=-3, npeak=5.,binaries=False,verbose=False, **kwargs):
+	def sample_three_body(self,tdisrupt=1000.,rate=1.,nstar=None,mu0=0.,sig0=10.0,vesc0=10.0,rho0=1.,mmin=0.1,mmax=1.4,alpha=-1.35,masses=None,m1=None,m2a=None,m2b=None,emin=None,emax=None,balpha=-1,q=-3, npeak=5.,binaries=False,verbose=False, **kwargs):
 		""" A function for sampling the three-body interaction core ejection distribution function
 
 		Parameters
@@ -111,16 +111,22 @@ class corespraydf(object):
 			slope of the stellar mass function in the core (default: -1.35)
 		masses : float
 			array of masses to be used instead of drawing for a power-law mass function (default: None)
-		ms : float
+			Note : mmin, mmax, and alpha will be overridden
+		m1 : float
 			fixed mass for single star (default: None)
-		m_a : float
+			Note : (mmin, mmax, alpha) or (masses) must still be provided to determine the mean mass in the core
+		m2a : float
 			fixed mass for binary star A (default: None)
-		m_b : float
+			Note : (mmin, mmax, alpha) or (masses) must still be provided to determine the mean mass in the core
+		m2b : float
 			fixed mass for binary star B (default: None)
+			Note : (mmin, mmax, alpha) or (masses) must still be provided to determine the mean mass in the core
 		emin : float
 			minimum binary energy (default: None)
 		emax : float
 			maximum binary energy (default: None)
+		balpha : float
+			power-law slope of initial binary binding energy distribution (default: -1)
 		q : float
 			exponenet for calculating probability of stellar escape from three-body system (#Equation 7.23) (default: -3)
 		npeak : float
@@ -271,23 +277,35 @@ class corespraydf(object):
 
 		while nescape < self.nstar:
 
-			if ms is None:
+			if m1 is None:
 				if masses is None:
 					ms=self._power_law_distribution_function(1, self.alpha, self.mmin, self.mmax)
 				else:
 					ms=np.random.choice(self.masses,1)
+			elif isinstance(m1,float) or isinstance(m1,int):
+				ms=m1
+			else:
+				ms=np.random.choice(m1,1)
 
-			if m_a is None:
+			if m2a is None:
 				if masses is None:
 					m_a=self._power_law_distribution_function(1, self.alpha, self.mmin, self.mmax)
 				else:
 					m_a=np.random.choice(self.masses,1)
+			elif isinstance(m2a,float) or isinstance(m2a,int):
+				m_a=m2a
+			else:
+				m_a=np.random.choice(m2a,1)
 
-			if m_b is None:
+			if m2b is None:
 				if masses is None:
 					m_b=self._power_law_distribution_function(1, self.alpha, self.mmin, self.mmax)
 				else:
 					m_b=np.random.choice(self.masses,1)
+			elif isinstance(m2b,float) or isinstance(m2b,int) :
+				m_b=m2b
+			else:
+				m_b=np.random.choice(m2b,1)
 
 			mb=m_a+m_b
 			M=ms+mb
@@ -303,7 +321,7 @@ class corespraydf(object):
 
 				rdot=np.sqrt((vxs-vxb)**2.+(vys-vyb)**2.+(vzs-vzb)**2.)
 
-				ebin,semi=self._sample_binding_energy(m_a,m_b,-1,self.emin,self.emax)
+				ebin,semi=self._sample_binding_energy(m_a,m_b,balpha,self.emin,self.emax)
 
 				if rsample:
 
@@ -451,7 +469,7 @@ class corespraydf(object):
 		prob=(ms**q)/(ms**q+m_a**q+m_b**q)
 		return prob
 
-	def _sample_binding_energy(self,mb1,mb2,alpha,emin,emax):
+	def _sample_binding_energy(self,mb1,mb2,balpha,emin,emax):
 	    #Opik's Law
 		#Default binding energy distribution is:
 		# power law of slope -1 
@@ -460,12 +478,12 @@ class corespraydf(object):
 		grav=4.302e-3 #pc/Msun (km/s)^2
 
 
-		if isinstance(mb1,float):
+		if isinstance(mb1,float) or isinstance(mb1,int):
 			n=1
 		else:
 			n=len(mb1)
 
-		ebin_si=self._power_law_distribution_function(n,alpha,emin,emax) #Joules = kg (m/s)^2
+		ebin_si=self._power_law_distribution_function(n,balpha,emin,emax) #Joules = kg (m/s)^2
 		ebin=ebin_si/1.9891e30 # Msun (m/s)^2
 		ebin/=(1000.0*1000.0) #Msun (km/s)^2
 
