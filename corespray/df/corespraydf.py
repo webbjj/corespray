@@ -77,7 +77,7 @@ class corespraydf(object):
 		self.timing=timing
 
 
-	def sample_three_body(self,tdisrupt=1000.,rate=1.,nstar=None,mu0=0.,sig0=10.0,vesc0=10.0,rho0=1.,mmin=0.1,mmax=1.4,alpha=-1.35,masses=None,emin=None,emax=None,q=-3, npeak=5.,binaries=False,verbose=False, **kwargs):
+	def sample_three_body(self,tdisrupt=1000.,rate=1.,nstar=None,mu0=0.,sig0=10.0,vesc0=10.0,rho0=1.,mmin=0.1,mmax=1.4,alpha=-1.35,masses=None,ms=None,m_a=None,m_b=None,emin=None,emax=None,q=-3, npeak=5.,binaries=False,verbose=False, **kwargs):
 		""" A function for sampling the three-body interaction core ejection distribution function
 
 		Parameters
@@ -267,10 +267,24 @@ class corespraydf(object):
 		if self.timing: dttime=time.time()
 
 		while nescape < self.nstar:
-			if masses is None:
-				ms,m_a,m_b=self._power_law_distribution_function(3, self.alpha, self.mmin, self.mmax)
-			else:
-				ms,m_a,m_b=np.random.choice(self.masses,3)
+
+			if ms is None:
+				if masses is None:
+					ms=self._power_law_distribution_function(1, self.alpha, self.mmin, self.mmax)
+				else:
+					ms=np.random.choice(self.masses,1)
+
+			if m_a is None:
+				if masses is None:
+					m_a=self._power_law_distribution_function(1, self.alpha, self.mmin, self.mmax)
+				else:
+					m_a=np.random.choice(self.masses,1)
+
+			if m_b is None:
+				if masses is None:
+					m_b=self._power_law_distribution_function(1, self.alpha, self.mmin, self.mmax)
+				else:
+					m_b=np.random.choice(self.masses,1)
 
 			mb=m_a+m_b
 			M=ms+mb
