@@ -1,5 +1,5 @@
 # corespray
-A python package for sampling a distribution function for stars that have been ejected from a star cluster's core. If you use corespray in your research, please cite [Grondin et al. (2022)](https://ui.adsabs.harvard.edu/abs/2022MNRAS.tmp.3150G/abstract) and link to https://github.com/webbjj/corespray/. Please also see the requirements below, as corespray relies heavily on other packages (e.g. [galpy](https://docs.galpy.org/en/) that should be cited as well.
+A python package for sampling a distribution function for stars that have been ejected from a star cluster's core. If you use corespray in your research, please cite [Grondin et al. (2022)](https://ui.adsabs.harvard.edu/abs/2022MNRAS.tmp.3150G/abstract) and link to https://github.com/webbjj/corespray/. Please also see the requirements below, as corespray relies heavily on other packages (e.g. [galpy](https://docs.galpy.org/en/)) that should be cited as well.
 
 # Installation 
 To install corespray from GitHub, clone the repository and install via setup tools:
