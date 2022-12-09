@@ -55,9 +55,9 @@ To sample a kick velocity distribution due to three-body encounters, run
 `os,ob=cspray.sample_three_body(tdisrupt=1000.,rate=1.,nstar=None,mu0=0.,sig0=10.0,vesc0=10.0,rho0=1.,mmin=0.1,mmax=1.4,alpha=-1.35,masses=None,m1=None,m2a=None,m2b=None,emin=None,emax=None,balpha=-1,q=-3, npeak=5.,binaries=False,verbose=False, **kwargs)`
 
 where the parameters are defined as follows
-		Parameters
-		----------
 
+	Parameters
+	----------
 		tdisrupt : float
 			time over which sampling begins (Myr)
 		rate : float
@@ -153,7 +153,10 @@ where the parameters are as follows:
 			galpy orbit instance for kicked stars
 
 Finally, it is possible to sample a uniform distribution of kick velocities
+
 `os = cspray.sample_uniform(tdisrupt=1000.,rate=1.,nstar=None,vmin=0.,vmax=500.)`
+
+which has parameters
 
 		Parameters
 		----------
