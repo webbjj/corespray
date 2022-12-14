@@ -146,6 +146,9 @@ class corespraydf(object):
 			Sample separation between single star and binary within core (default: False)
 		nrsep : float
 			Numer of mean separations to sample out to when sampling separation between single and binary stars (default : 2)
+		initialize : bool
+			initialize orbits only, do not integrate (default:False)
+			Note if initialize == True then the initial, un-integrated orbits, will be returned
 
 		Returns
 		----------
@@ -171,6 +174,7 @@ class corespraydf(object):
 		self.tdisrupt=tdisrupt
 
 		rsample=kwargs.get('rsample',False)
+		initialize=kwargs.get('initialize',False)
 
 
 		#Select escape times
@@ -185,7 +189,7 @@ class corespraydf(object):
 		self.tesc=-1.*self.tdisrupt*np.random.rand(self.nstar)
 
 		ntstep=kwargs.get('ntstep',10000)
-		nrsep=kwargs.get('nrsep',2)
+		nrsep=kwargs.get('nrsep',1)
 		method=kwargs.get('method',None)
 
 		ts=np.linspace(0.,-1.*self.tdisrupt/self.to,ntstep)
@@ -217,25 +221,21 @@ class corespraydf(object):
 		#Limits of binary energy distribution
 		#If emin and emax are None, assume limits are between twice the hard-soft boundary and twice the contact boundary between two solar mass stars
 
-		if emin is None:
+		a_hs=grav*self.mbar/(sig0**2.) # pc
+		a_max=2.*a_hs
+		a_min=(4.0/215.032)*4.84814e-6 #pc
 
-			a_hs=grav*self.mbar/(sig0**2.) # pc
-			a_max=2.*a_hs
+		if emin is None:
 			e_min=grav*(self.mbar**2.)/(2.0*a_max) #Msun (km/s)**2
 			e_min*=(1000.0**2.)
-
 			self.emin=e_min*msolar
-
 		else:
 			self.emin=emin
 
 		if emax is None:
-			a_min=(4.0/215.032)*4.84814e-6 #pc
 			e_max=grav*(self.mbar**2.)/(2.0*a_min) #Msun (km/s)**2
 			e_max*=(1000.0**2.)
-
 			self.emax=e_max*msolar
-
 		else:
 			self.emax=emax
 
@@ -263,6 +263,7 @@ class corespraydf(object):
 		self.mb1=np.zeros(self.nstar)
 		self.mb2=np.zeros(self.nstar)
 		self.eb=np.zeros(self.nstar)
+		self.e0=np.zeros(self.nstar)
 
 		if binaries:
 			self.binaries=True
@@ -324,7 +325,7 @@ class corespraydf(object):
 
 				if rsample:
 
-					rs=np.random.rand()*nrsep*self.rsep
+					rs=a_max/2.+np.random.rand()*(nrsep*self.rsep/2.-a_max/2.)
 					phis=2.0*np.pi*np.random.rand()
 					thetas=np.arccos(1.0-2.0*np.random.rand())
 
@@ -332,7 +333,7 @@ class corespraydf(object):
 					ys=rs*np.sin(phis)*np.sin(thetas)
 					zs=rs*np.cos(thetas)
 
-					rb=np.random.rand()*nrsep*self.rsep
+					rb=a_max/2.+np.random.rand()*(nrsep*self.rsep/2.-a_max/2.)
 					phib=2.0*np.pi*np.random.rand()
 					thetab=np.arccos(1.0-2.0*np.random.rand())
 
@@ -380,6 +381,7 @@ class corespraydf(object):
 				    self.mb1[nescape]=m_a
 				    self.mb2[nescape]=m_b
 				    self.eb[nescape]=ebin
+				    self.e0[nescape]=e0
 
 				    nescape+=1
 
@@ -387,15 +389,31 @@ class corespraydf(object):
 		
 		if self.timing: print(nescape,' three body encounters simulated in ', time.time()-dttime,' s')
 
-		self.oi,self.of=self._integrate_orbits(vxkick,vykick,vzkick,False,verbose,**kwargs)
+		if initialize:
+			self.oi=self._initialize_orbits(vxkick,vykick,vzkick,False,verbose,**kwargs)
+			self.of=None
+			if binaries:
+				self.obi=self._initialize_orbits(vxkick,vykick,vzkick,False,verbose,**kwargs)
+				self.obf=None
 
-		if binaries:
-			self.obi,self.obf=self._integrate_orbits(vxkickb,vykickb,vzkickb,binaries,verbose,**kwargs)
+			if binaries:
+				return self.oi,self.obi
+			else:
+				return self.oi
 
-		if binaries:
-			return self.of,self.obf
+
 		else:
-			return self.of
+			self.oi,self.of=self._integrate_orbits(vxkick,vykick,vzkick,False,verbose,**kwargs)
+
+			if binaries:
+				self.obi,self.obf=self._integrate_orbits(vxkickb,vykickb,vzkickb,binaries,verbose,**kwargs)
+
+			if binaries:
+				return self.of,self.obf
+			else:
+				return self.of
+
+
 
 	def _integrate_orbits(self,vxkick,vykick,vzkick,binaries=False,verbose=False,**kwargs):
 		
@@ -461,6 +479,47 @@ class corespraydf(object):
 		of=Orbit(vxvv_f,ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
 
 		return oi,of
+
+	def _initialize_orbits(self,vxkick,vykick,vzkick,binaries=False,verbose=False,**kwargs):
+		
+		#Set integration method (see https://docs.galpy.org/en/v1.7.2/orbit.html)
+		method=kwargs.get('method',None)
+		#Add a minimal offset to prevent stars from being initialized at r=0 in a the cluster.
+		offset=kwargs.get('offset',1e-9)
+		xoffsets=np.random.normal(0.0,offset,len(vxkick))
+		yoffsets=np.random.normal(0.0,offset,len(vykick))
+		zoffsets=np.random.normal(0.0,offset,len(vzkick))
+
+		Re0, phie0, ze0, vRe0, vTe0, vze0=np.array([]),np.array([]),np.array([]),np.array([]),np.array([]),np.array([])
+
+		#Initial and final positions and velocities
+		vxvv_i=[]
+		vxvv_f=[]
+
+		if self.timing: dttottime=time.time()
+
+
+		for i in range(0,self.nstar):
+			if self.timing: dttime=time.time()
+
+			xi,yi,zi=self.o.x(self.tesc[i]/self.to)+xoffsets[i],self.o.y(self.tesc[i]/self.to)+yoffsets[i],self.o.z(self.tesc[i]/self.to)+zoffsets[i]
+			vxi=vxkick[i]+self.o.vx(self.tesc[i]/self.to)
+			vyi=vykick[i]+self.o.vy(self.tesc[i]/self.to)
+			vzi=vzkick[i]+self.o.vz(self.tesc[i]/self.to)
+
+			if verbose: print(i,self.tesc[i],xi,yi,zi,vxi,vyi,vzi)
+
+			#Save initial positions and velocities
+
+			Ri, phii, zi = coords.rect_to_cyl(xi, yi, zi)
+			vRi, vTi, vzi = coords.rect_to_cyl_vec(vxi, vyi, vzi, xi, yi, zi)
+
+			vxvv_i.append([Ri/self.ro, vRi/self.vo, vTi/self.vo, zi/self.ro, vzi/self.vo, phii])
+
+		#Save initial and final positions and velocities of kicked stars at t=0 in orbit objects
+		oi=Orbit(vxvv_i,ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
+
+		return oi
 
 	def _prob_three_body_escape(self,ms,m_a,m_b,q):
 
