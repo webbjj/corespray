@@ -393,7 +393,7 @@ class corespraydf(object):
 			self.oi=self._initialize_orbits(vxkick,vykick,vzkick,False,verbose,**kwargs)
 			self.of=None
 			if binaries:
-				self.obi=self._initialize_orbits(vxkick,vykick,vzkick,False,verbose,**kwargs)
+				self.obi=self._initialize_orbits(vxkickb,vykickb,vzkickb,False,verbose,**kwargs)
 				self.obf=None
 
 			if binaries:
@@ -585,7 +585,7 @@ class corespraydf(object):
 
 		return vs_peak
 
-	def sample_uniform(self,tdisrupt=1000.,rate=1.,nstar=None,vmin=0.,vmax=500.,verbose=False):
+	def sample_uniform(self,tdisrupt=1000.,rate=1.,nstar=None,vmin=0.,vmax=500.,verbose=False, **kwargs):
 		""" A function for sampling a uniform core ejection distribution function
 
 		Parameters
@@ -659,7 +659,7 @@ class corespraydf(object):
 
 		return self.of
 
-	def sample_gaussian(self,tdisrupt=1000.,rate=1.,nstar=None,vmean=100.,vsig=10.,verbose=False):
+	def sample_gaussian(self,tdisrupt=1000.,rate=1.,nstar=None,vmean=100.,vsig=10.,verbose=False, **kwargs):
 		""" A function for sampling a uniform core ejection distribution function
 
 		Parameters
