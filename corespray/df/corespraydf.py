@@ -466,11 +466,12 @@ class corespraydf(object):
 				#Save final positions and velocities
 				vxvv_f.append([os.R(0.)/self.ro,os.vR(0.)/self.vo,os.vT(0.)/self.vo,os.z(0.)/self.ro,os.vz(0.)/self.vo,os.phi(0.)])
 
+				if self.timing: print('ORBIT ',i,' INTEGRATED FROM %f WITH VK= %f KM/S IN' % (self.tesc[i],self.vesc[i]),time.time()-dttime,' s (Rp=%f)' % os.rperi())
+				
 			elif binaries and not self.bindx[i]:
 				vxvv_f.append([self.o.R(0.)/self.ro,self.o.vR(0.)/self.vo,self.o.vT(0.)/self.vo,self.o.z(0.)/self.ro,self.o.vz(0.)/self.vo,self.o.phi(0.)])
 
 
-			if self.timing: print('ORBIT ',i,' INTEGRATED FROM %f WITH VK= %f KM/S IN' % (self.tesc[i],self.vesc[i]),time.time()-dttime,' s (Rp=%f)' % os.rperi())
 
 		if self.timing: print('ALL ORBITS INTEGRATED IN',time.time()-dttottime,' s' )
 
