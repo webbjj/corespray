@@ -145,10 +145,12 @@ class corespraydf(object):
 		rsample : bool
 			Sample separation between single star and binary within core (default: False)
 		nrsep : float
-			Numer of mean separations to sample out to when sampling separation between single and binary stars (default : 2)
+			Number of mean separations to sample out to when sampling separation between single and binary stars (default : 2)
 		initialize : bool
 			initialize orbits only, do not integrate (default:False)
 			Note if initialize == True then the initial, un-integrated orbits, will be returned
+		escape_only : bool
+			Keep track of kicked single stars with vkick > vesc only (default:True)
 
 		Returns
 		----------
@@ -265,6 +267,8 @@ class corespraydf(object):
 		self.eb=np.zeros(self.nstar)
 		self.e0=np.zeros(self.nstar)
 
+		self.sindx=np.ones(self.nstar,dtype=bool)
+
 		if binaries:
 			self.binaries=True
 			self.bindx=np.zeros(self.nstar,dtype=bool)
@@ -274,6 +278,8 @@ class corespraydf(object):
 
 
 		if self.timing: dttime=time.time()
+
+		escape_only=kwargs.get('escape_only',True)
 
 		while nescape < self.nstar:
 
@@ -350,11 +356,14 @@ class corespraydf(object):
 
 				vs=self._sample_escape_velocity(e0,ms,mb,npeak,nrandom)
 
-				if vs >self.vesc0:  
+				if vs >= self.vesc0 or not escape_only:
+
+					if vs<self.vesc0:
+						self.sindx[nescape]=False
 
 				    self.vesc=np.append(self.vesc,vs)
 				    self.dr=np.append(self.dr,dr)
-				    vxkick[nescape]=vs*(vxs/vstar)
+				    vxkick[]=vs*(vxs/vstar)
 				    vykick[nescape]=vs*(vys/vstar)
 				    vzkick[nescape]=vs*(vzs/vstar)
 
