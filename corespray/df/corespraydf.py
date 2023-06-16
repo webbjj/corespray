@@ -1,8 +1,8 @@
-""" The corespraydf class
+""" """ The corespraydf class
   
 """
 
-__author__ = "Steffani Grondin & Jeremy J Webb"
+__author__ = "Steffani M Grondin & Jeremy J Webb"
 
 __all__ = [
     "corespraydf",
@@ -44,7 +44,7 @@ class corespraydf(object):
 
 	History
 	-------
-	2021 - Written - Grandin (UofT)
+	2021 - Written - Grondin (UofT)
 
 	"""
 
@@ -163,7 +163,7 @@ class corespraydf(object):
 
 		History
 		-------
-		2021 - Written - Grandin/Webb (UofT)
+		2021 - Written - Grondin/Webb (UofT)
 
 		"""
 
@@ -361,13 +361,13 @@ class corespraydf(object):
 					if vs<self.vesc0:
 						self.sindx[nescape]=False
 
-				    self.vesc=np.append(self.vesc,vs)
-				    self.dr=np.append(self.dr,dr)
-				    vxkick[]=vs*(vxs/vstar)
-				    vykick[nescape]=vs*(vys/vstar)
-				    vzkick[nescape]=vs*(vzs/vstar)
+					self.vesc=np.append(self.vesc,vs)
+					self.dr=np.append(self.dr,dr)
+					vxkick[nescape]=vs*(vxs/vstar)
+					vykick[nescape]=vs*(vys/vstar)
+					vzkick[nescape]=vs*(vzs/vstar)
 
-				    if binaries:
+					if binaries:
 					    #Check to see if recoil binary will also escape
 					    #Binary kick velocity is calculated assuming total linear momentum of system sums to zero
 
@@ -386,13 +386,13 @@ class corespraydf(object):
 					    if vsb > self.vesc0:
 						    self.bindx[nescape]=True
 
-				    self.mstar[nescape]=ms
-				    self.mb1[nescape]=m_a
-				    self.mb2[nescape]=m_b
-				    self.eb[nescape]=ebin
-				    self.e0[nescape]=e0
+					self.mstar[nescape]=ms
+					self.mb1[nescape]=m_a
+					self.mb2[nescape]=m_b
+					self.eb[nescape]=ebin
+					self.e0[nescape]=e0
 
-				    nescape+=1
+					nescape+=1
 
 				if verbose: print('Sampling: ',nescape,prob,vs,self.vesc0)
 		
@@ -622,7 +622,7 @@ class corespraydf(object):
 
 		History
 		-------
-		2021 - Written - Grandin/Webb (UofT)
+		2021 - Written - Grondin/Webb (UofT)
 
 		"""
 
@@ -696,7 +696,7 @@ class corespraydf(object):
 
 		History
 		-------
-		2022 - Written - Grandin/Webb (UofT)
+		2022 - Written - Grondin/Webb (UofT)
 
 		"""
 
