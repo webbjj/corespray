@@ -1,4 +1,4 @@
-""" """ The corespraydf class
+""" The corespraydf class
   
 """
 
