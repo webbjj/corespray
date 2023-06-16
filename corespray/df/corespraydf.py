@@ -264,7 +264,11 @@ class corespraydf(object):
 		self.mstar=np.zeros(self.nstar)
 		self.mb1=np.zeros(self.nstar)
 		self.mb2=np.zeros(self.nstar)
+		self.semi=np.zeros(self.nstar)
+		self.semif=np.zeros(self.nstar)
 		self.eb=np.zeros(self.nstar)
+		self.ebf=np.zeros(self.nstar)
+
 		self.e0=np.zeros(self.nstar)
 
 		self.sindx=np.ones(self.nstar,dtype=bool)
@@ -330,8 +334,8 @@ class corespraydf(object):
 				ebin,semi=self._sample_binding_energy(m_a,m_b,balpha,self.emin,self.emax)
 
 				if rsample:
-
-					rs=a_max/2.+np.random.rand()*(nrsep*self.rsep/2.-a_max/2.)
+					#Sample between semi-major axis of the binary and nrsep * mean separation in the core
+					rs=semi+np.random.rand()*(nrsep*(self.rsep-semi))
 					phis=2.0*np.pi*np.random.rand()
 					thetas=np.arccos(1.0-2.0*np.random.rand())
 
@@ -391,6 +395,16 @@ class corespraydf(object):
 					self.mb2[nescape]=m_b
 					self.eb[nescape]=ebin
 					self.e0[nescape]=e0
+					self.semi[nescape]=semi
+
+					#Final relative velocity between single and binary
+					rdotf=vs+vsb
+					#Final binding energy and semi major axis of the binary
+					ebf=e0-0.5*(mb*ms/M)*(rdotf**2.)
+					self.semif[nescape]=(0.5*grav*m_a*m_b)/ebf
+
+					#Make sure new semi-major axis is less than original
+					assert self.semif[nescape] <= self.semi[nescape]
 
 					nescape+=1
 
