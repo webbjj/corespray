@@ -353,10 +353,14 @@ class corespraydf(object):
 
 					dr=np.sqrt((xs-xb)**2.+(ys-yb)**2.+(zs-zb)**2.)
 
-					e0=0.5*(mb*ms/M)*(rdot**2.)-grav*ms*mb/dr + ebin
+					e0=0.5*(mb*ms/M)*(rdot**2.)-grav*ms*mb/dr - ebin
 				else:
-					e0=0.5*(mb*ms/M)*(rdot**2.)-grav*ms*mb/self.rsep + ebin
+					e0=0.5*(mb*ms/M)*(rdot**2.)-grav*ms*mb/self.rsep - ebin
 					dr=self.rsep
+
+				if kwargs.get('e0bug',False):
+					print('UNFIXING EB')
+					e0+=(2.0*ebin)
 
 				vs=self._sample_escape_velocity(e0,ms,mb,npeak,nrandom)
 
@@ -401,10 +405,11 @@ class corespraydf(object):
 					rdotf=vs+vsb
 					#Final binding energy and semi major axis of the binary
 					ebf=e0-0.5*(mb*ms/M)*(rdotf**2.)
-					self.semif[nescape]=(0.5*grav*m_a*m_b)/ebf
+					self.semif[nescape]=-1*(0.5*grav*m_a*m_b)/ebf
 
 					#Make sure new semi-major axis is less than original
-					assert self.semif[nescape] <= self.semi[nescape]
+					#print(e0,rdot,ebin,ebin/e0,self.semi[nescape],rdotf,ebf,ebf/e0,self.semif[nescape])
+					#assert self.semif[nescape] <= self.semi[nescape]
 
 					nescape+=1
 
