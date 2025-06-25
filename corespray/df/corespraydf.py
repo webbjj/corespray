@@ -84,6 +84,7 @@ class corespraydf(object):
 
         self.timing=timing
         self.show_progress=show_progress
+        self.verbose=verbose
 
     def _get_K(self, mass):
         """ Calculate the Hurley type K for a given mass """
@@ -93,7 +94,7 @@ class corespraydf(object):
         else:
             return 0
         
-    def sample_three_body(self,tdisrupt=1000.,rate=1.,nstar=None,mu0=0.,sig0=10.0,vesc0=10.0,rho0=1.,mmin=0.1,mmax=1.4,alpha=-1.35,seps=None, masses=None,m1=None,m2a=None,m2b=None,emin=None,emax=None,balpha=-1,q=-3, npeak=5.,binaries=False,verbose=False, show_progress=None, **kwargs):
+    def sample_three_body(self,tdisrupt=1000.,rate=1.,nstar=None,mu0=0.,sig0=10.0,vesc0=10.0,rho0=1.,mmin=0.1,mmax=1.4,alpha=-1.35,seps=None, masses=None,m1=None,m2a=None,m2b=None,emin=None,emax=None,balpha=-1,q=-3, npeak=5.,binaries=False, **kwargs):
         """ A function for sampling the three-body interaction core ejection distribution function
 
         Parameters
@@ -156,15 +157,13 @@ class corespraydf(object):
             when sampling kick velocity distribution function, sampling range will be from 0 to npeak*vpeak, where vpeak is the peak in the distribution function (default: 5)
         binaries : bool
             keep track of binaries that receive recoil kicks greater than the cluster's escape velocity (default : False)
-        verbose : bool
-            print additional information to screen (default: False)
 
         Key Word Arguments
         ----------
         nrandom : int
             Nunber of random numbers to sample in a given batch
         dt : float
-            Fixed time step for orbit integration (default: 0.1 Myr)
+            Fixed time step for orbit integration (default: 0.01 Myr)
         rsample : bool
             Sample separation between single star and binary within core (default: False)
         nrsep : float
@@ -172,10 +171,16 @@ class corespraydf(object):
         initialize : bool
             initialize orbits only, do not integrate (default:False)
             Note if initialize == True then the initial, un-integrated orbits, will be returned
+        show_progress : bool
+            Show progress bar when integrating orbits (default: inherits from self)
+        verbose : bool
+            Print additional information to screen (default: inherits from self)
         escape_only : bool
             Keep track of kicked single stars with vkick > vesc only (default:True)
         method : str
             Method to use for orbit integration (default: None, which uses galpy's default method)
+        offset : float
+            Small offset (in pc) to add to the initial positions of the stars to prevent them from being initialized at r=0 in the cluster (default: 1e-9)
         K1, K2a, K2b : arrays of integers
             Hurley integer stellar types (https://ui.adsabs.harvard.edu/abs/2000MNRAS.315..543H/abstract) associated with the m1, m2a, and m2b arrays, respectively. Helps track the kinds of stars involved in the interaction.
             If provided, must be the same length as the corresponding mass array.
@@ -226,11 +231,11 @@ class corespraydf(object):
 
         nrandom=kwargs.get('nrandom',1000)
         self.timing=kwargs.get('timing',self.timing)
+
+        #Resets the progress bar flag, if necessary
         self.show_progress=kwargs.get('show_progress',self.show_progress)
-
-        if show_progress is not None:
-            self.show_progress=show_progress
-
+        self.verbose=kwargs.get('verbose',self.verbose)
+        
         self.tdisrupt=tdisrupt
 
         rsample=kwargs.get('rsample',False)
@@ -243,17 +248,15 @@ class corespraydf(object):
             self.rate=nstar/self.tdisrupt
         else:
             self.rate=rate
-            self.nstar=self.tdisrupt*rate
-            
+            self.nstar=int(self.tdisrupt*rate)
+
         self.tesc=-1.*self.tdisrupt*np.random.rand(self.nstar)
 
-        ntstep=kwargs.get('ntstep',10000)
-        dt = kwargs.get('dt',0.1)
+        dt = kwargs.get('dt',0.01)
         nrsep=kwargs.get('nrsep',1)
         method=kwargs.get('method',None)
 
-        ntstep = np.ceil(((self.tdisrupt/self.to)/dt)).astype(int)
-
+        ntstep = np.ceil(self.tdisrupt/dt).astype(int)
         ts=np.linspace(0.,-1.*self.tdisrupt/self.to,ntstep)
 
         if method is not None:
@@ -302,7 +305,7 @@ class corespraydf(object):
         else:
             self.emax=emax
 
-        if verbose:
+        if self.verbose:
             print('Sample Binary Energies between: ',self.emin,' and ',self.emax,' J')
 
         self.q=q
@@ -332,7 +335,6 @@ class corespraydf(object):
         self.semif=np.zeros(self.nstar)
         self.eb=np.zeros(self.nstar)
         self.ebf=np.zeros(self.nstar)
-        self.vperi = np.zeros(self.nstar)
 
         self.e0=np.zeros(self.nstar)
 
@@ -357,7 +359,9 @@ class corespraydf(object):
                         ms=self._power_law_distribution_function(1, self.alpha, self.mmin, self.mmax)
                     else:
                         ms=np.random.choice(self.masses,1)
+                 
                     K1 = self._get_K(ms)
+                
                 elif isinstance(m1,float) or isinstance(m1,int):
                     ms=m1
                     K1 = self._get_K(ms)
@@ -371,8 +375,6 @@ class corespraydf(object):
                         K1 = kwargs['K1'][ind]
                     else:
                         K1 = self._get_K(m1[ind])
-
-                    
 
                 if isinstance(m2a,np.ndarray) and isinstance(m2b,np.ndarray):
                     if len(m2a) != len(m2b):
@@ -556,15 +558,15 @@ class corespraydf(object):
 
                         nescape+=1
 
-                    if verbose: print('Sampling: ',nescape,prob,vs,self.vesc0)
+                    if self.verbose: print('Sampling: ',nescape,prob,vs,self.vesc0)
         
         if self.timing: print(nescape,' three body encounters simulated in ', time.time()-dttime,' s')
 
         if initialize:
-            self.oi=self._initialize_orbits(vxkick,vykick,vzkick,False,verbose,**kwargs)
+            self.oi=self._initialize_orbits(vxkick,vykick,vzkick,False,**kwargs)
             self.of=None
             if binaries:
-                self.obi=self._initialize_orbits(vxkickb,vykickb,vzkickb,False,verbose,**kwargs)
+                self.obi=self._initialize_orbits(vxkickb,vykickb,vzkickb,False,**kwargs)
                 self.obf=None
 
             if binaries:
@@ -574,22 +576,24 @@ class corespraydf(object):
 
 
         else:
-            self.oi,self.of=self._integrate_orbits(vxkick,vykick,vzkick,False,verbose,**kwargs)
+            self.oi,self.of=self._integrate_orbits(vxkick,vykick,vzkick,False,**kwargs)
 
             if binaries:
-                self.obi,self.obf=self._integrate_orbits(vxkickb,vykickb,vzkickb,binaries,verbose,**kwargs)
+                self.obi,self.obf=self._integrate_orbits(vxkickb,vykickb,vzkickb,binaries,**kwargs)
 
             if binaries:
                 return self.of,self.obf
             else:
                 return self.of
 
-    def _integrate_orbits(self,vxkick,vykick,vzkick,binaries=False,verbose=False,**kwargs):
+    def _integrate_orbits(self,vxkick,vykick,vzkick,binaries=False,**kwargs):
         
         #Set integration method (see https://docs.galpy.org/en/v1.7.2/orbit.html)
         method=kwargs.get('method',None)
         #Add a minimal offset to prevent stars from being initialized at r=0 in a the cluster.
         offset=kwargs.get('offset',1e-9)
+        verbose=kwargs.get('verbose',self.verbose)
+
         xoffsets=np.random.normal(0.0,offset,len(vxkick))
         yoffsets=np.random.normal(0.0,offset,len(vykick))
         zoffsets=np.random.normal(0.0,offset,len(vzkick))
@@ -617,7 +621,7 @@ class corespraydf(object):
             vxi=vxkick[i]+self.o.vx(self.tesc[i]/self.to)
             vyi=vykick[i]+self.o.vy(self.tesc[i]/self.to)
             vzi=vzkick[i]+self.o.vz(self.tesc[i]/self.to)
-
+    
             if verbose: print(i,self.tesc[i],xi,yi,zi,vxi,vyi,vzi)
 
             #Save initial positions and velocities
@@ -631,31 +635,32 @@ class corespraydf(object):
                 #Integrate orbit from tesc to 0.
                 os=Orbit(vxvv_i[-1],ro=self.ro,vo=self.vo,solarmotion=[-11.1, 24.0, 7.25])
 
-                ntstep=kwargs.get('ntstep',10000)
                 dt = kwargs.get('dt',0.01)
 
-                ntstep = np.ceil(((-self.tesc[i]/self.to)/dt)).astype(int)
+                ntstep = np.ceil(((-self.tesc[i])/dt)).astype(int)
 
                 if ntstep < 100:
                     ntstep = 100
-
+                
                 ts=np.linspace(self.tesc[i]/self.to,0.,ntstep)
 
                 if method is None:
                     os.integrate(ts,self.pot) 
                 else:
-                    os.integrate(ts,self.pot,method=method,progressbar=True)
+                    os.integrate(ts,self.pot,method=method)
 
                 #Save final positions and velocities
                 vxvv_f.append([os.R(0.)/self.ro,os.vR(0.)/self.vo,os.vT(0.)/self.vo,os.z(0.)/self.ro,os.vz(0.)/self.vo,os.phi(0.)])
+                #assigntime += time.time() - assignstart
 
                 if self.timing: print('ORBIT ',i,' INTEGRATED FROM %f WITH VK= %f KM/S IN' % (self.tesc[i],self.vesc[i]),time.time()-dttime,' s (Rp=%f)' % os.rperi())
-                
+            
             elif binaries and not self.bindx[i]:
                 vxvv_f.append([self.o.R(0.)/self.ro,self.o.vR(0.)/self.vo,self.o.vT(0.)/self.vo,self.o.z(0.)/self.ro,self.o.vz(0.)/self.vo,self.o.phi(0.)])
 
 
-
+        #print('Integration took',inttime,' s for ',len(self.tesc),' orbits')
+        #print('Assigning took',assigntime,' s for ',len(self.tesc),' orbits')
         if self.timing: print('ALL ORBITS INTEGRATED IN',time.time()-dttottime,' s' )
 
         #Save initial and final positions and velocities of kicked stars at t=0 in orbit objects
@@ -664,12 +669,14 @@ class corespraydf(object):
 
         return oi,of
 
-    def _initialize_orbits(self,vxkick,vykick,vzkick,binaries=False,verbose=False,**kwargs):
+    def _initialize_orbits(self,vxkick,vykick,vzkick,binaries=False,**kwargs):
         
         #Set integration method (see https://docs.galpy.org/en/v1.7.2/orbit.html)
         method=kwargs.get('method',None)
         #Add a minimal offset to prevent stars from being initialized at r=0 in a the cluster.
         offset=kwargs.get('offset',1e-9)
+        verbose=kwargs.get('verbose',self.verbose)
+
         xoffsets=np.random.normal(0.0,offset,len(vxkick))
         yoffsets=np.random.normal(0.0,offset,len(vykick))
         zoffsets=np.random.normal(0.0,offset,len(vzkick))
@@ -767,7 +774,8 @@ class corespraydf(object):
 
         return vs_peak
 
-    def sample_uniform(self,tdisrupt=1000.,rate=1.,nstar=None,vmin=0.,vmax=500.,verbose=False, **kwargs):
+    def sample_uniform(self,tdisrupt=1000.,rate=1.,nstar=None,vmin=0.,
+                        vmax=500., **kwargs):
         """ A function for sampling a uniform core ejection distribution function
 
         Parameters
@@ -783,8 +791,19 @@ class corespraydf(object):
             minimum kick velocity
         vmax : float
             maximum kick velocity
+
+        Key Word Arguments
+        ----------
+        dt : float
+            Fixed time step for orbit integration (default: 0.1 Myr)
+        method : str
+            Method to use for orbit integration (default: None, which uses galpy's default method)
+        offset : float
+            Small offset (in pc) to add to the initial positions of the stars to prevent them from being initialized at r=0 in the cluster (default: 1e-9)
         verbose : bool
-            print additional information to screen (default: False)
+            print additional information to screen (default: inherits from self)
+        show_progress : bool
+            if True, show a progress bar during orbit integration (default: inherits from self)
 
         Returns
         ----------
@@ -800,6 +819,8 @@ class corespraydf(object):
 
         self.tdisrupt=tdisrupt
 
+        self.show_progress = kwargs.get('show_progress', self.show_progress)
+        self.verbose = kwargs.get('verbose', self.verbose)
 
         #Select escape times
         #If nstar is not None, randomly select escapers between tstart and tend
@@ -812,9 +833,17 @@ class corespraydf(object):
             
         self.tesc=-1.*self.tdisrupt*np.random.rand(self.nstar)
 
-        ntstep=kwargs.get/('ntstep',10000)
+        dt = kwargs.get('dt',0.01)
+
+        ntstep = np.ceil(self.tdisrupt/dt).astype(int)
+        method=kwargs.get('method',None)
+
         ts=np.linspace(0.,-1.*self.tdisrupt/self.to,ntstep)
-        self.o.integrate(ts,self.mwpot)
+
+        if method is not None:
+            self.o.integrate(ts,self.mwpot,method=method)
+        else:
+            self.o.integrate(ts,self.mwpot)
 
         if self.gcpot is None:
             self.pot=self.mwpot
@@ -824,7 +853,6 @@ class corespraydf(object):
         
         #Generate kick velocities for escaped stars and binaries
         self.vesc=vmin+(vmax-vmin)*np.random.rand(self.nstar)
-
 
         #Assume a random direction
         vxs=np.random.normal(0,1.,self.nstar)
@@ -841,7 +869,7 @@ class corespraydf(object):
 
         return self.of
 
-    def sample_gaussian(self,tdisrupt=1000.,rate=1.,nstar=None,vmean=100.,vsig=10.,verbose=False, **kwargs):
+    def sample_gaussian(self,tdisrupt=1000.,rate=1.,nstar=None,vmean=100.,vsig=10., **kwargs):
         """ A function for sampling a uniform core ejection distribution function
 
         Parameters
@@ -857,8 +885,19 @@ class corespraydf(object):
             average kick velocity
         vsig : float
             standard deviation of kick velocity distribution
+
+        Key Word Arguments
+        ----------
+        dt : float
+            Fixed time step for orbit integration (default: 0.1 Myr)
+        method : str
+            Method to use for orbit integration (default: None, which uses galpy's default method)
+        offset : float
+            Small offset (in pc) to add to the initial positions of the stars to prevent them from being initialized at r=0 in the cluster (default: 1e-9)
         verbose : bool
-            print additional information to screen (default: False)
+            print additional information to screen (default: inherits from self)
+        show_progress : bool
+            if True, show a progress bar during orbit integration (default: inherits from self)
 
         Returns
         ----------
@@ -873,7 +912,8 @@ class corespraydf(object):
         """
 
         self.tdisrupt=tdisrupt
-
+        self.show_progress = kwargs.get('show_progress', self.show_progress)
+        self.verbose = kwargs.get('verbose', self.verbose)
 
         #Select escape times
         #If nstar is not None, randomly select escapers between tstart and tend
@@ -886,9 +926,17 @@ class corespraydf(object):
             
         self.tesc=-1.*self.tdisrupt*np.random.rand(self.nstar)
 
-        ntstep=kwargs.get('ntstep',10000)
+        dt = kwargs.get('dt',0.01)
+
+        ntstep = np.ceil(self.tdisrupt/dt).astype(int)
+        method=kwargs.get('method',None)
+
         ts=np.linspace(0.,-1.*self.tdisrupt/self.to,ntstep)
-        self.o.integrate(ts,self.mwpot)
+
+        if method is not None:
+            self.o.integrate(ts,self.mwpot,method=method)
+        else:
+            self.o.integrate(ts,self.mwpot)
 
         if self.gcpot is None:
             self.pot=self.mwpot
