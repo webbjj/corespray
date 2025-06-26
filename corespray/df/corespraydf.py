@@ -19,8 +19,6 @@ from matplotlib import animation
 import time
 from tqdm import tqdm
 
-from . import streamspraydf
-
 
 class corespraydf(object):
     """ A class for initializing a distribution function for stars that are ejected from the core of a globular cluster
