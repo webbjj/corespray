@@ -18,6 +18,8 @@ from matplotlib import animation
 
 import time
 
+from . import streamspraydf
+
 
 class corespraydf(object):
 
@@ -63,21 +65,24 @@ class corespraydf(object):
 
 		self.mwpot=pot
 
+		self.mgc=mgc/self.mo
+
 		if mgc is None:
 			self.gcpot=None
 		else:
 			if W0 is None:
 				ra=rgc/1.3
-				self.gcpot=PlummerPotential(mgc/self.mo,ra/self.ro,ro=self.ro,vo=self.vo)
+				self.gcpot=PlummerPotential(self.mgc,ra/self.ro,ro=self.ro,vo=self.vo)
 			else:
-				self.gcpot=KingPotential(W0,mgc/self.mo,rgc/self.ro,ro=self.ro,vo=self.vo)
+				self.gcpot=KingPotential(W0,self.mgc,rgc/self.ro,ro=self.ro,vo=self.vo)
 
 		self.binaries=False
+		self.stream=False
 
 		self.timing=timing
 
 
-	def sample_three_body(self,tdisrupt=1000.,rate=1.,nstar=None,mu0=0.,sig0=10.0,vesc0=10.0,rho0=1.,mmin=0.1,mmax=1.4,alpha=-1.35,masses=None,m1=None,m2a=None,m2b=None,emin=None,emax=None,balpha=-1,q=-3, npeak=5.,binaries=False,verbose=False, **kwargs):
+	def sample_three_body(self,tdisrupt=1000.,rate=1.,nstar=None,mu0=0.,sig0=10.0,vesc0=10.0,rho0=1.,mmin=0.1,mmax=1.4,alpha=-1.35,masses=None,m1=None,m2a=None,m2b=None,emin=None,emax=None,balpha=-1,q=-3, npeak=5.,binaries=False,stream = False,verbose=False, **kwargs):
 		""" A function for sampling the three-body interaction core ejection distribution function
 
 		Parameters
@@ -133,6 +138,8 @@ class corespraydf(object):
 			when sampling kick velocity distribution function, sampling range will be from 0 to npeak*vpeak, where vpeak is the peak in the distribution function (default: 5)
 		binaries : bool
 			keep track of binaries that receive recoil kicks greater than the cluster's escape velocity (default : False)
+		stream : bool
+			simultaneously run streamspray via galpy
 		verbose : bool
 			print additional information to screen (default: False)
 
@@ -151,6 +158,8 @@ class corespraydf(object):
 			Note if initialize == True then the initial, un-integrated orbits, will be returned
 		escape_only : bool
 			Keep track of kicked single stars with vkick > vesc only (default:True)
+		saveinit : bool
+			save initial conditions
 
 		Returns
 		----------
@@ -194,12 +203,12 @@ class corespraydf(object):
 		nrsep=kwargs.get('nrsep',1)
 		method=kwargs.get('method',None)
 
-		ts=np.linspace(0.,-1.*self.tdisrupt/self.to,ntstep)
+		self.ts=np.linspace(0.,-1.*self.tdisrupt/self.to,ntstep)
 
 		if method is not None:
-			self.o.integrate(ts,self.mwpot,method=method)
+			self.o.integrate(self.ts,self.mwpot,method=method)
 		else:
-			self.o.integrate(ts,self.mwpot)
+			self.o.integrate(self.ts,self.mwpot)
 
 		if self.gcpot is None:
 			self.pot=self.mwpot
@@ -275,10 +284,29 @@ class corespraydf(object):
 
 		if binaries:
 			self.binaries=True
-			self.bindx=np.zeros(self.nstar,dtype=bool)
-			self.vescb=np.array([])
 		else:
 			self.binaries=False
+
+		self.bindx=np.zeros(self.nstar,dtype=bool)
+		self.vescb=np.array([])
+
+
+		if kwargs.get('saveinit',False):
+			saveinit=True
+			#self.xsi=np.zeros(self.nstar)
+			#self.ysi=np.zeros(self.nstar)
+			#self.zsi=np.zeros(self.nstar)
+			self.vxsi=np.zeros(self.nstar)
+			self.vysi=np.zeros(self.nstar)
+			self.vzsi=np.zeros(self.nstar)
+			#self.xbi=np.zeros(self.nstar)
+			#self.ybi=np.zeros(self.nstar)
+			#self.zbi=np.zeros(self.nstar)
+			self.vxbi=np.zeros(self.nstar)
+			self.vybi=np.zeros(self.nstar)
+			self.vzbi=np.zeros(self.nstar)
+		else:
+			saveinit=False
 
 
 		if self.timing: dttime=time.time()
@@ -371,28 +399,40 @@ class corespraydf(object):
 
 					self.vesc=np.append(self.vesc,vs)
 					self.dr=np.append(self.dr,dr)
-					vxkick[nescape]=vs*(vxs/vstar)
-					vykick[nescape]=vs*(vys/vstar)
-					vzkick[nescape]=vs*(vzs/vstar)
 
-					if binaries:
-					    #Check to see if recoil binary will also escape
-					    #Binary kick velocity is calculated assuming total linear momentum of system sums to zero
+					#New random kick direction
+					vxsk,vysk,vzsk=np.random.normal(self.mu0,self.sig0,3)
+					vstark=np.sqrt(vxsk**2.+vysk**2.+vzsk**2.)
 
-					    pxi=ms*vxs+mb*vxb
-					    pyi=ms*vys+mb*vyb
-					    pzi=ms*vzs+mb*vzb
+					vxkick[nescape]=vs*(vxsk/vstark)
+					vykick[nescape]=vs*(vysk/vstark)
+					vzkick[nescape]=vs*(vzsk/vstark)
 
-					    vxkickb[nescape]=(pxi-ms*vxkick[nescape])/mb
-					    vykickb[nescape]=(pyi-ms*vykick[nescape])/mb
-					    vzkickb[nescape]=(pzi-ms*vzkick[nescape])/mb
+                    			#Check to see if recoil binary will also escape
+                    			#Binary kick velocity is calculated assuming total linear momentum of system sums to zero
 
-					    vsb=np.sqrt(vxkickb[nescape]**2.+ vykickb[nescape]**2.+ vzkickb[nescape]**2.)
+					pxi=ms*vxs+mb*vxb
+					pyi=ms*vys+mb*vyb
+					pzi=ms*vzs+mb*vzb
 
-					    self.vescb=np.append(self.vescb,vsb)
+					if saveinit:
+						self.vxsi[nescape]=vxs
+						self.vysi[nescape]=vys
+						self.vzsi[nescape]=vzs
+						self.vxbi[nescape]=vxb
+						self.vybi[nescape]=vyb
+						self.vzbi[nescape]=vzb
 
-					    if vsb > self.vesc0:
-						    self.bindx[nescape]=True
+					vxkickb[nescape]=(pxi-ms*vxkick[nescape])/mb
+					vykickb[nescape]=(pyi-ms*vykick[nescape])/mb
+					vzkickb[nescape]=(pzi-ms*vzkick[nescape])/mb
+
+					vsb=np.sqrt(vxkickb[nescape]**2.+ vykickb[nescape]**2.+ vzkickb[nescape]**2.)
+
+					self.vescb=np.append(self.vescb,vsb)
+
+					if vsb > self.vesc0:
+						self.bindx[nescape]=True
 
 					self.mstar[nescape]=ms
 					self.mb1[nescape]=m_a
@@ -417,18 +457,26 @@ class corespraydf(object):
 		
 		if self.timing: print(nescape,' three body encounters simulated in ', time.time()-dttime,' s')
 
+		if stream: 
+			self.stream=True
+			self._sample_stream(initialize=initialize,**kwargs)
+
 		if initialize:
 			self.oi=self._initialize_orbits(vxkick,vykick,vzkick,False,verbose,**kwargs)
 			self.of=None
+
 			if binaries:
 				self.obi=self._initialize_orbits(vxkickb,vykickb,vzkickb,False,verbose,**kwargs)
 				self.obf=None
 
-			if binaries:
+			if binaries and stream:
+				return self.oi,self.obi,self.oil,self.oit
+			elif binaries:
 				return self.oi,self.obi
+			elif stream:
+				return self.oi,self.oil,self.oit
 			else:
 				return self.oi
-
 
 		else:
 			self.oi,self.of=self._integrate_orbits(vxkick,vykick,vzkick,False,verbose,**kwargs)
@@ -436,11 +484,14 @@ class corespraydf(object):
 			if binaries:
 				self.obi,self.obf=self._integrate_orbits(vxkickb,vykickb,vzkickb,binaries,verbose,**kwargs)
 
-			if binaries:
+			if binaries and stream:
+				return self.of,self.obf,self.ofl,self.oft
+			elif binaries:
 				return self.of,self.obf
+			elif stream:
+				return self.of,self.ofl,self.oft
 			else:
 				return self.of
-
 
 
 	def _integrate_orbits(self,vxkick,vykick,vzkick,binaries=False,verbose=False,**kwargs):
@@ -614,7 +665,25 @@ class corespraydf(object):
 
 		return vs_peak
 
-	def sample_uniform(self,tdisrupt=1000.,rate=1.,nstar=None,vmin=0.,vmax=500.,verbose=False, **kwargs):
+	def _sample_stream(self,initialize=False,**kwargs):
+
+			method=kwargs.get('method','Fardal15')
+
+			if initialize:
+				integrate=False
+			else:
+				integrate=True
+
+			integrate=kwargs.get('integrate',integrate)
+
+
+			self.oil,self.ofl,self.tescl,self.vescl,self.oit,self.oft,self.tesct,self.vesct=streamspraydf.streamspraydf(self.mgc,self.o,self.gcpot,self.mwpot,self.tdisrupt/self.to,self.nstar,method=method,integrate=integrate,**kwargs)
+
+
+			self.tescl*=(-1*self.to)
+			self.tesct*=(-1*self.to)
+
+	def sample_uniform(self,tdisrupt=1000.,rate=1.,nstar=None,vmin=0.,vmax=500.,stream=False,verbose=False, **kwargs):
 		""" A function for sampling a uniform core ejection distribution function
 
 		Parameters
@@ -630,6 +699,8 @@ class corespraydf(object):
 			minimum kick velocity
 		vmax : float
 			maximum kick velocity
+		stream : bool
+			simultaneously run streamspray via galpy
 		verbose : bool
 			print additional information to screen (default: False)
 
@@ -686,9 +757,16 @@ class corespraydf(object):
 
 		self.oi,self.of=self._integrate_orbits(vxkick,vykick,vzkick,**kwargs)
 
-		return self.of
+		if stream: 
+			self.stream=True
+			self._sample_stream(initialize=initialize,**kwargs)
 
-	def sample_gaussian(self,tdisrupt=1000.,rate=1.,nstar=None,vmean=100.,vsig=10.,verbose=False, **kwargs):
+		if stream:
+			return self.of,self.ofl,self.oft
+		else:
+			return self.of
+
+	def sample_gaussian(self,tdisrupt=1000.,rate=1.,nstar=None,vmean=100.,vsig=10.,stream=False,verbose=False, **kwargs):
 		""" A function for sampling a uniform core ejection distribution function
 
 		Parameters
@@ -704,6 +782,8 @@ class corespraydf(object):
 			average kick velocity
 		vsig : float
 			standard deviation of kick velocity distribution
+		stream : bool
+			simultaneously run streamspray via galpy
 		verbose : bool
 			print additional information to screen (default: False)
 
@@ -759,7 +839,14 @@ class corespraydf(object):
 
 		self.oi,self.of=self._integrate_orbits(vxkick,vykick,vzkick,**kwargs)
 	
-		return self.of
+		if stream: 
+			self.stream=True
+			self._sample_stream(initialize=initialize,**kwargs)
+
+		if stream:
+			return self.of,self.ofl,self.oft
+		else:
+			return self.of
 
 
 	def _power_law_distribution_function(self,n,alpha,xmin,xmax):
@@ -790,20 +877,26 @@ class corespraydf(object):
 	    self.ax.set_ylabel('Y (kpc)')
 	    self.txt_title=self.ax.set_title('')
 	    self.line, = self.ax.plot([], [], lw=2)
-	    self.pt, = self.ax.plot([],[],'.')
-	    self.pt2, = self.ax.plot([],[],'.')
+	    self.pt, = self.ax.plot([],[],'k.')
+	    self.pt2, = self.ax.plot([],[],'g.')
+	    self.ptl, = self.ax.plot([],[],'r.')
+	    self.ptt, = self.ax.plot([],[],'b.')
 
-	def _set_data(self,gcdata,sdata,bdata):
+	def _set_data(self,gcdata,sdata,bdata,tdatal,tdatat):
 	    self.gcdata = gcdata
 	    self.sdata=sdata
 	    self.bdata=bdata
+	    self.tdatal=tdatal
+	    self.tdatat=tdatat
 
 	def _ani_init(self):
 	    self.line.set_data([], [])
 	    self.pt.set_data([],[])
 	    self.pt2.set_data([],[])
+	    self.ptl.set_data([],[])
+	    self.ptt.set_data([],[])
 
-	    return self.line,self.pt,self.pt2
+	    return self.line,self.pt,self.pt2,self.ptt,self.ptl
 
 	def _ani_update(self, i):
 
@@ -815,7 +908,7 @@ class corespraydf(object):
 			y = self.gcdata[i-5:i+1,1]	
 		self.line.set_data(x, y)
 
-		escindx=self.tesc/self.to <= self.ts[i]
+		escindx=self.tesc/self.to <= self.tsani[i]
 
 		if np.sum(escindx)>0:
 			self.pt.set_data(self.sdata[i][0][escindx],self.sdata[i][1][escindx])
@@ -826,11 +919,25 @@ class corespraydf(object):
 			if np.sum(escindx)>0:
 				self.pt2.set_data(self.bdata[i][0][escindx*self.bindx],self.bdata[i][1][escindx*self.bindx])
 			else:
-				self.pt2.set_data([],[])	
+				self.pt2.set_data([],[])
 
-		self.txt_title.set_text('%s' % str (self.ts[i]*self.to))
+		if self.stream:
+			tescindxl=self.tescl/self.to <= self.tsani[i]
+			tescindxt=self.tesct/self.to <= self.tsani[i]
 
-		return self.line,self.pt,self.pt2
+			if np.sum(tescindxl)>0:
+				self.ptl.set_data(self.tdatal[i][0][tescindxl],self.tdatal[i][1][tescindxl])
+			else:
+				self.ptl.set_data([],[])
+
+			if np.sum(tescindxt)>0:
+				self.ptt.set_data(self.tdatat[i][0][tescindxt],self.tdatat[i][1][tescindxt])
+			else:
+				self.ptt.set_data([],[])
+
+		self.txt_title.set_text('%s' % str (self.tsani[i]*self.to))
+
+		return self.line,self.pt,self.pt2,self.ptl,self.ptt
 
 
 	def animate(self,frames=100,interval=50,xlim=(-20,20),ylim=(-20,20)):
@@ -857,34 +964,49 @@ class corespraydf(object):
 
 		self._init_fig(xlim,ylim)
 
-		self.ts=np.linspace(-1.*self.tdisrupt/self.to,0.,frames)
+		self.tsani=np.linspace(-1.*self.tdisrupt/self.to,0.,frames)
 		tsint=np.linspace(0.,-1.*self.tdisrupt/self.to,1000)
 		self.of.integrate(tsint,self.pot)
+
 		if self.binaries:
 			self.obf.integrate(tsint,self.pot)
+
+		if self.stream:
+			self.ofl.integrate(tsint,self.pot)
+			self.oft.integrate(tsint,self.pot)
 
 		gcdata=np.zeros(shape=(frames,2))
 
 		for i in range(0,frames):
-		    gcdata[i]=[self.o.x(self.ts[i]),self.o.y(self.ts[i])]
+		    gcdata[i]=[self.o.x(self.tsani[i]),self.o.y(self.tsani[i])]
 
 		sdata=np.zeros(shape=(frames,2,self.nstar))
 
 		for i in range(0,frames):
-			sdata[i]=[self.of.x(self.ts[i]),self.of.y(self.ts[i])]
+			sdata[i]=[self.of.x(self.tsani[i]),self.of.y(self.tsani[i])]
 
 		if self.binaries:
 			bdata=np.zeros(shape=(frames,2,self.nstar))
 			for i in range(0,frames):
-				bdata[i]=[self.obf.x(self.ts[i]),self.obf.y(self.ts[i])]
+				bdata[i]=[self.obf.x(self.tsani[i]),self.obf.y(self.tsani[i])]
 		else:
 			bdata=None
 
-		self._set_data(gcdata,sdata,bdata)
+		if self.stream:
+			tdatal=np.zeros(shape=(frames,2,self.nstar))
+			tdatat=np.zeros(shape=(frames,2,self.nstar))
+			for i in range(0,frames):
+				tdatal[i]=[self.ofl.x(self.tsani[i]),self.ofl.y(self.tsani[i])]
+				tdatat[i]=[self.oft.x(self.tsani[i]),self.oft.y(self.tsani[i])]
+		else:
+			tdatal=None
+			tdatat=None
+
+		self._set_data(gcdata,sdata,bdata,tdatal,tdatat)
 
 		self.anim = animation.FuncAnimation(self.fig, self._ani_update, init_func=self._ani_init, frames=frames, interval=interval, blit=False)
 
-	def snapout(self,filename='corespray.dat',filenameb='coresprayb.dat'):
+	def snapout(self,filename='corespray.dat',filenameb='coresprayb.dat',filenamel='coresprayl.dat',filenamet='coresprayt.dat'):
 		"""Output present day positions, velocities, escape times, and escape velocities of stars
 		
 		Parameters
@@ -923,3 +1045,34 @@ class corespraydf(object):
 			tesc=self.tesc
 
 			np.savetxt(filenameb,np.column_stack([R,vR,vT,z,vz,phi,vesc,tesc,self.bindx]))
+
+		if self.stream:
+
+			R=self.ofl.R(0.)
+			vR=self.ofl.vR(0.)
+			vT=self.ofl.vT(0.)
+			z=self.ofl.z(0.)
+			vz=self.ofl.vz(0.)
+			phi=self.ofl.phi(0.)
+
+			vesc=self.vescl
+			tesc=self.tescl
+
+			np.savetxt(filenamel,np.column_stack([R,vR,vT,z,vz,phi,vesc,tesc]))
+
+			R=self.oft.R(0.)
+			vR=self.oft.vR(0.)
+			vT=self.oft.vT(0.)
+			z=self.oft.z(0.)
+			vz=self.oft.vz(0.)
+			phi=self.oft.phi(0.)
+
+			vesc=self.vesct
+			tesc=self.tesct
+
+			np.savetxt(filenamet,np.column_stack([R,vR,vT,z,vz,phi,vesc,tesc]))
+
+
+
+
+
